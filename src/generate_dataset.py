@@ -1,17 +1,25 @@
 """
-src/generate_dataset.py -- PVT Simulation & Diagnostic Dataset Orchestrator.
+src/generate_dataset.py -- PVT+Process Simulation & Diagnostic Dataset Orchestrator.
 
 Orchestrates batch SPICE simulations across:
-  - 15 PVT corners (VDD in [0.9V, 1.0V, 1.1V] x Temp in [-40, 0, 27, 75, 125] °C)
+  - 3 Process corners (FF, TT, SS) x 15 V-T corners = 45 total corners
   - 5 Fault classes (Healthy, Resistive Open, Bridging, Vth Drift Storage, Vth Drift Access)
   - Parametric severity sweeps for each fault class
+  - Yields 1,350 dataset rows (30 samples/corner x 45 corners)
+    requiring ~9,450 SPICE simulations (7 testbenches/sample)
+
+Process corner parameterization (relative to TT baseline in config.yaml):
+  TT -- no change (VTO=0.45, KP=250u for NMOS; VTO=-0.45, KP=100u for PMOS)
+  FF -- KP +10%, |VTO| -10% (faster devices)
+  SS -- KP -10%, |VTO| +10% (slower devices)
 
 Extracts both Raw Dynamic & SNM features, and computes Physics-Normalized
-(PVT-Invariant) features by referencing a healthy cell simulated at the same corner.
+(PVT-Invariant) features by referencing a healthy cell simulated at the same corner
+AND process point, making the invariant features robust to all three variation axes.
 
 Outputs:
-  - data/sram_fault_dataset.csv        (Master dataset: all corners & samples)
-  - data/sram_fault_dataset_indist.csv (Nominal corner: VDD=1.0V, Temp=27C)
+  - data/sram_fault_dataset.csv        (Master dataset: all 45 corners & 1,350 samples)
+  - data/sram_fault_dataset_indist.csv (Nominal corner: VDD=1.0V, Temp=27C, TT process)
   - data/sram_fault_dataset_ood.csv    (Held-out OOD corners)
   - logs/convergence_flags.csv         (Audit of any simulation warnings)
 """
@@ -20,6 +28,7 @@ import os
 import sys
 import math
 import shutil
+import re
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 
@@ -54,6 +63,83 @@ LOGS_DIR = PROJECT_ROOT / "logs"
 
 OPERATIONS = ("hold", "write", "write_0", "read", "read_0", "snm_hold", "snm_read")
 
+# ---------------------------------------------------------------------------
+# Process Corner Defaults (TT baseline from cell_core_healthy.net)
+# ---------------------------------------------------------------------------
+_TT_NMOS_VTO = 0.45   # V
+_TT_NMOS_KP  = 250e-6 # A/V²
+_TT_PMOS_VTO = -0.45  # V  (negative for PMOS)
+_TT_PMOS_KP  = 100e-6 # A/V²
+
+
+def get_process_corners(cfg: dict) -> List[Dict[str, Any]]:
+    """Return list of process corner dicts from config, falling back to TT/FF/SS defaults."""
+    default_corners = [
+        {"name": "TT", "nmos_vto_scale": 1.00, "nmos_kp_scale": 1.00,
+         "pmos_vto_scale": 1.00, "pmos_kp_scale": 1.00},
+        {"name": "FF", "nmos_vto_scale": 0.90, "nmos_kp_scale": 1.10,
+         "pmos_vto_scale": 0.90, "pmos_kp_scale": 1.10},
+        {"name": "SS", "nmos_vto_scale": 1.10, "nmos_kp_scale": 0.90,
+         "pmos_vto_scale": 1.10, "pmos_kp_scale": 0.90},
+    ]
+    return cfg.get("pvt_sweep", {}).get("process_corners", default_corners)
+
+
+def patch_model_params(
+    src_netlist_path: str,
+    dst_netlist_path: str,
+    nmos_vto: float,
+    nmos_kp: float,
+    pmos_vto: float,
+    pmos_kp: float,
+) -> None:
+    """
+    Read src_netlist_path, overwrite the SRAM_NMOS and SRAM_PMOS .model lines
+    with the given scaled parameters, and write to dst_netlist_path.
+
+    Only the VTO and KP parameters are modified; all other model parameters
+    (GAMMA, LAMBDA, PHI, TOX, LEVEL) are preserved unchanged.
+    """
+    with open(src_netlist_path, "r", encoding="utf-8") as fh:
+        lines = fh.readlines()
+
+    out_lines = []
+    for line in lines:
+        stripped = line.strip().lower()
+        if stripped.startswith(".model sram_nmos"):
+            new_line = re.sub(
+                r"VTO=[-\d.e+]+",
+                f"VTO={nmos_vto:.6g}",
+                line,
+                flags=re.IGNORECASE,
+            )
+            new_line = re.sub(
+                r"KP=[-\d.e+u]+",
+                f"KP={nmos_kp:.6g}",
+                new_line,
+                flags=re.IGNORECASE,
+            )
+            out_lines.append(new_line)
+        elif stripped.startswith(".model sram_pmos"):
+            new_line = re.sub(
+                r"VTO=[-\d.e+]+",
+                f"VTO={pmos_vto:.6g}",
+                line,
+                flags=re.IGNORECASE,
+            )
+            new_line = re.sub(
+                r"KP=[-\d.e+u]+",
+                f"KP={pmos_kp:.6g}",
+                new_line,
+                flags=re.IGNORECASE,
+            )
+            out_lines.append(new_line)
+        else:
+            out_lines.append(line)
+
+    with open(dst_netlist_path, "w", encoding="utf-8") as fh:
+        fh.writelines(out_lines)
+
 
 def load_config() -> dict:
     if not CONFIG_PATH.exists():
@@ -80,12 +166,13 @@ def build_sample_id(
     temp_c: float,
     vdd: float,
     run_idx: int,
+    process_corner: str = "TT",
 ) -> str:
-    """Format sample ID per Plan Section 9."""
+    """Format sample ID per Plan Section 9 -- includes process corner prefix."""
     t_str = format_temp_str(temp_c)
     v_str = format_vdd_str(vdd)
     tgt_prefix = f"_{target}" if target and target != "none" else ""
-    return f"SRAM_F{fault_class}{tgt_prefix}_S{sev_idx}_{t_str}_{v_str}_{run_idx:04d}"
+    return f"SRAM_{process_corner}_F{fault_class}{tgt_prefix}_S{sev_idx}_{t_str}_{v_str}_{run_idx:04d}"
 
 
 def get_default_fault_specs() -> List[Dict[str, Any]]:
@@ -183,13 +270,18 @@ def simulate_reference_cells(
     pvt_corners: List[Tuple[float, float]],
     work_dir: Path,
     max_workers: int = 8,
+    healthy_core_path: Optional[str] = None,
+    process_corner_name: str = "TT",
 ) -> Dict[Tuple[float, float], Dict[str, float]]:
     """
     Simulate a healthy reference cell at each PVT corner and extract reference metrics
     for physics normalization.
     """
+    if healthy_core_path is None:
+        healthy_core_path = str(HEALTHY_CORE_PATH)
+
     print(f"\n========================================================")
-    print(f"STEP 1: Simulating Healthy Reference Cell across {len(pvt_corners)} PVT corners")
+    print(f"STEP 1: [{process_corner_name}] Simulating Healthy Reference Cell across {len(pvt_corners)} PVT corners")
     print(f"========================================================")
 
     ref_cores_dir = work_dir / "ref_cores"
@@ -199,8 +291,8 @@ def simulate_reference_cells(
     for d in (ref_cores_dir, ref_tb_dir, ref_raw_dir, ref_log_dir):
         d.mkdir(parents=True, exist_ok=True)
 
-    healthy_lines = load_cell_core(str(HEALTHY_CORE_PATH))
-    ref_core_path = str(ref_cores_dir / "cell_core_healthy_ref.net")
+    healthy_lines = load_cell_core(healthy_core_path)
+    ref_core_path = str(ref_cores_dir / f"cell_core_healthy_ref_{process_corner_name}.net")
     save_cell_core(list(healthy_lines), ref_core_path)
 
     all_tbs = []
@@ -212,12 +304,12 @@ def simulate_reference_cells(
         t_str = format_temp_str(temp)
         v_str = format_vdd_str(vdd)
         for op in OPERATIONS:
-            tb_file = str(ref_tb_dir / f"tb_ref_{t_str}_{v_str}_{op}.net")
+            tb_file = str(ref_tb_dir / f"tb_ref_{process_corner_name}_{t_str}_{v_str}_{op}.net")
             compose_testbench(ref_core_path, op, tb_file, vdd=vdd, temperature_c=temp)
             all_tbs.append(tb_file)
             tb_map[c_key][op] = tb_file
 
-    flags_csv = str(LOGS_DIR / "ref_sim_flags.csv")
+    flags_csv = str(LOGS_DIR / f"ref_sim_flags_{process_corner_name}.csv")
     df_runs = run_batch(all_tbs, str(ref_raw_dir), str(ref_log_dir), flags_csv, max_workers=max_workers)
     run_lookup = {r["net_path"]: r for _, r in df_runs.iterrows()}
 
@@ -256,7 +348,7 @@ def simulate_reference_cells(
             "snm_hold_ref_v": max(sh_feat["hold_snm_v"], 0.05),
             "snm_read_ref_v": max(sr_feat["read_snm_v"], 0.05),
         }
-        print(f"  Corner (Vdd={vdd:.1f}V, Temp={temp:3.0f}C): "
+        print(f"  [{process_corner_name}] Corner (Vdd={vdd:.1f}V, Temp={temp:3.0f}C): "
               f"Iddq={ref_metrics[c_key]['iddq_ref_uA']:.4f}uA, "
               f"t_write={ref_metrics[c_key]['t_write_ref_ps']:.1f}ps, "
               f"SNM_H={ref_metrics[c_key]['snm_hold_ref_v']:.3f}V, "
@@ -272,9 +364,10 @@ def generate_sram_dataset(
     max_workers: Optional[int] = None,
     prune_raw: bool = True,
     selected_corners: Optional[List[Tuple[float, float]]] = None,
+    selected_process_corners: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     """
-    Main dataset generation routine.
+    Main dataset generation routine -- expanded to 3 process corners (FF, TT, SS).
 
     Parameters
     ----------
@@ -285,7 +378,10 @@ def generate_sram_dataset(
     prune_raw : bool
         If True, deletes .raw waveform files immediately after feature extraction.
     selected_corners : list of (vdd, temp), optional
-        Subset of corners to run. If None, runs all 15 PVT corners in config.
+        Subset of V-T corners to run. If None, runs all 15 PVT corners in config.
+    selected_process_corners : list of str, optional
+        Subset of process corner names to run (e.g. ['TT', 'FF']).
+        If None, runs all process corners defined in config (TT, FF, SS).
     """
     cfg = load_config()
     pvt_cfg = cfg.get("pvt_sweep", {})
@@ -303,301 +399,360 @@ def generate_sram_dataset(
     else:
         pvt_corners = selected_corners
 
-    work_dir = DATA_DIR / "sim_work"
-    cores_dir = work_dir / "cores"
-    tb_dir = work_dir / "testbenches"
-    raw_dir = work_dir / "raw"
-    log_dir = work_dir / "logs"
-    for d in (cores_dir, tb_dir, raw_dir, log_dir, LOGS_DIR):
-        d.mkdir(parents=True, exist_ok=True)
+    # Load process corner definitions and filter if requested
+    all_proc_corners = get_process_corners(cfg)
+    if selected_process_corners is not None:
+        all_proc_corners = [p for p in all_proc_corners if p["name"] in selected_process_corners]
 
-    # Step 1: Simulate Healthy Reference Cells at each corner
-    ref_metrics = simulate_reference_cells(pvt_corners, work_dir, max_workers=max_workers)
+    print(f"\n{'='*60}")
+    print(f"SRAM Fault Diagnostic Dataset Generation")
+    print(f"  V-T corners    : {len(pvt_corners)}")
+    print(f"  Process corners: {[p['name'] for p in all_proc_corners]}")
+    print(f"  Total corners  : {len(pvt_corners) * len(all_proc_corners)}")
+    print(f"  Expected rows  : {len(pvt_corners) * len(all_proc_corners) * 30}")
+    print(f"{'='*60}")
 
-    # Step 2: Prepare Cell Cores for all fault specifications
-    print(f"\n========================================================")
-    print(f"STEP 2: Building Fault Netlists")
-    print(f"========================================================")
-    fault_specs = get_default_fault_specs()
-    healthy_lines = load_cell_core(str(HEALTHY_CORE_PATH))
-
-    core_paths = {}
-    for idx, spec in enumerate(fault_specs):
-        spec_key = f"F{spec['fault_class']}_{spec['target']}_S{spec['severity_idx']}"
-        core_file = str(cores_dir / f"core_{spec_key}.net")
-        create_fault_cell(spec, healthy_lines, core_file)
-        core_paths[spec_key] = core_file
-    print(f"  Generated {len(core_paths)} cell core netlists across 5 fault classes.")
-
-    # Step 3: Compose Testbenches across Corners x Cores x 7 Operations
-    print(f"\n========================================================")
-    print(f"STEP 3: Composing Testbenches across {len(pvt_corners)} corners x {len(fault_specs)} configurations")
-    print(f"========================================================")
-
-    samples_plan = []
-    all_testbenches = []
+    work_dir_base = DATA_DIR / "sim_work"
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    all_extracted_rows: List[Dict] = []   # accumulates rows across all process corners
     run_counter = 1
 
-    for vdd, temp in pvt_corners:
-        c_key = (round(vdd, 2), int(round(temp)))
-        is_indist = bool(
-            abs(vdd - in_dist_corner.get("vdd_v", 1.0)) < 1e-4
-            and abs(temp - in_dist_corner.get("temperature_c", 27.0)) < 1e-4
+    # -----------------------------------------------------------------------
+    # Outer loop: Process Corners (TT / FF / SS)
+    # -----------------------------------------------------------------------
+    for proc_corner in all_proc_corners:
+        pc_name = proc_corner["name"]
+
+        # Compute actual model parameter values for this process corner
+        nmos_vto = _TT_NMOS_VTO * proc_corner["nmos_vto_scale"]
+        nmos_kp  = _TT_NMOS_KP  * proc_corner["nmos_kp_scale"]
+        pmos_vto = _TT_PMOS_VTO * proc_corner["pmos_vto_scale"]  # stays negative
+        pmos_kp  = _TT_PMOS_KP  * proc_corner["pmos_kp_scale"]
+
+        print(f"\n{'='*60}")
+        print(f"PROCESS CORNER: {pc_name}")
+        print(f"  NMOS VTO={nmos_vto:.4f}V  KP={nmos_kp*1e6:.1f}uA/V²")
+        print(f"  PMOS VTO={pmos_vto:.4f}V  KP={pmos_kp*1e6:.1f}uA/V²")
+        print(f"{'='*60}")
+
+        # Per-process working directories (keeps raw files separate per corner)
+        work_dir = work_dir_base / pc_name
+        cores_dir = work_dir / "cores"
+        tb_dir    = work_dir / "testbenches"
+        raw_dir   = work_dir / "raw"
+        log_dir   = work_dir / "logs"
+        for d in (cores_dir, tb_dir, raw_dir, log_dir):
+            d.mkdir(parents=True, exist_ok=True)
+
+        # Patch model parameters into a process-specific healthy netlist
+        patched_healthy_path = str(cores_dir / f"cell_core_healthy_{pc_name}.net")
+        patch_model_params(
+            str(HEALTHY_CORE_PATH),
+            patched_healthy_path,
+            nmos_vto=nmos_vto,
+            nmos_kp=nmos_kp,
+            pmos_vto=pmos_vto,
+            pmos_kp=pmos_kp,
         )
-        pvt_type = "in_distribution" if is_indist else "ood"
-        corner_id = f"C_{format_temp_str(temp)}_{format_vdd_str(vdd)}"
 
-        for spec in fault_specs:
+        # Step 1: Simulate Healthy Reference Cells at each V-T corner for this process
+        ref_metrics = simulate_reference_cells(
+            pvt_corners, work_dir, max_workers=max_workers,
+            healthy_core_path=patched_healthy_path,
+            process_corner_name=pc_name,
+        )
+
+        # Step 2: Prepare Cell Cores for all fault specifications (using patched netlist)
+        print(f"\n========================================================")
+        print(f"STEP 2: [{pc_name}] Building Fault Netlists")
+        print(f"========================================================")
+        fault_specs = get_default_fault_specs()
+        healthy_lines = load_cell_core(patched_healthy_path)
+
+        core_paths = {}
+        for idx, spec in enumerate(fault_specs):
             spec_key = f"F{spec['fault_class']}_{spec['target']}_S{spec['severity_idx']}"
-            core_path = core_paths[spec_key]
-            sample_id = build_sample_id(
-                fault_class=spec["fault_class"],
-                target=spec["target"],
-                sev_idx=spec["severity_idx"],
-                temp_c=temp,
-                vdd=vdd,
-                run_idx=run_counter,
+            core_file = str(cores_dir / f"core_{spec_key}.net")
+            create_fault_cell(spec, healthy_lines, core_file)
+            core_paths[spec_key] = core_file
+        print(f"  Generated {len(core_paths)} cell core netlists across 5 fault classes.")
+
+        # Step 3: Compose Testbenches across Corners x Cores x 7 Operations
+        print(f"\n========================================================")
+        print(f"STEP 3: [{pc_name}] Composing Testbenches across {len(pvt_corners)} corners x {len(fault_specs)} configs")
+        print(f"========================================================")
+
+        samples_plan = []
+        all_testbenches = []
+
+        for vdd, temp in pvt_corners:
+            c_key = (round(vdd, 2), int(round(temp)))
+            is_indist = bool(
+                abs(vdd - in_dist_corner.get("vdd_v", 1.0)) < 1e-4
+                and abs(temp - in_dist_corner.get("temperature_c", 27.0)) < 1e-4
+                and pc_name == "TT"      # only TT@nominal is in-distribution
             )
-            run_counter += 1
+            pvt_type = "in_distribution" if is_indist else "ood"
+            corner_id = f"{pc_name}_C_{format_temp_str(temp)}_{format_vdd_str(vdd)}"
 
-            sample_tbs = {}
-            for op in OPERATIONS:
-                tb_path = str(tb_dir / f"tb_{sample_id}_{op}.net")
-                compose_testbench(core_path, op, tb_path, vdd=vdd, temperature_c=temp)
-                sample_tbs[op] = tb_path
-                all_testbenches.append(tb_path)
+            for spec in fault_specs:
+                spec_key = f"F{spec['fault_class']}_{spec['target']}_S{spec['severity_idx']}"
+                core_path = core_paths[spec_key]
+                sample_id = build_sample_id(
+                    fault_class=spec["fault_class"],
+                    target=spec["target"],
+                    sev_idx=spec["severity_idx"],
+                    temp_c=temp,
+                    vdd=vdd,
+                    run_idx=run_counter,
+                    process_corner=pc_name,
+                )
+                run_counter += 1
 
-            samples_plan.append({
-                "sample_id": sample_id,
-                "corner_id": corner_id,
-                "pvt_type": pvt_type,
-                "vdd_v": float(vdd),
-                "temperature_c": float(temp),
-                "fault_class": spec["fault_class"],
-                "fault_name": spec["fault_name"],
-                "fault_target": spec["target"],
-                "severity_idx": spec["severity_idx"],
-                "severity_value": float(spec["severity_value"]),
-                "testbenches": sample_tbs,
-                "corner_key": c_key,
-            })
+                sample_tbs = {}
+                for op in OPERATIONS:
+                    tb_path = str(tb_dir / f"tb_{sample_id}_{op}.net")
+                    compose_testbench(core_path, op, tb_path, vdd=vdd, temperature_c=temp)
+                    sample_tbs[op] = tb_path
+                    all_testbenches.append(tb_path)
 
-    total_sims = len(all_testbenches)
-    print(f"  Total samples: {len(samples_plan)}")
-    print(f"  Total SPICE simulations to execute: {total_sims} (7 per sample)")
+                samples_plan.append({
+                    "sample_id": sample_id,
+                    "corner_id": corner_id,
+                    "pvt_type": pvt_type,
+                    "process_corner": pc_name,
+                    "vdd_v": float(vdd),
+                    "temperature_c": float(temp),
+                    "fault_class": spec["fault_class"],
+                    "fault_name": spec["fault_name"],
+                    "fault_target": spec["target"],
+                    "severity_idx": spec["severity_idx"],
+                    "severity_value": float(spec["severity_value"]),
+                    "testbenches": sample_tbs,
+                    "corner_key": c_key,
+                })
 
-    # Step 4: Batch Execute SPICE Simulations
-    print(f"\n========================================================")
-    print(f"STEP 4: Executing Batch Simulations ({max_workers} worker threads)")
-    print(f"========================================================")
-    flagged_csv = str(LOGS_DIR / "convergence_flags.csv")
-    df_runs = run_batch(
-        all_testbenches,
-        str(raw_dir),
-        str(log_dir),
-        flagged_csv,
-        max_workers=max_workers,
-    )
-    run_lookup = {r["net_path"]: r for _, r in df_runs.iterrows()}
+        total_sims = len(all_testbenches)
+        print(f"  Total samples: {len(samples_plan)}")
+        print(f"  Total SPICE simulations to execute: {total_sims} (7 per sample)")
 
-    # Step 5: Feature Extraction & Physics Normalization
-    print(f"\n========================================================")
-    print(f"STEP 5: Extracting Diagnostic Features & Physics Normalization")
-    print(f"========================================================")
+        # Step 4: Batch Execute SPICE Simulations
+        print(f"\n========================================================")
+        print(f"STEP 4: [{pc_name}] Executing Batch Simulations ({max_workers} worker threads)")
+        print(f"========================================================")
+        flagged_csv = str(LOGS_DIR / f"convergence_flags_{pc_name}.csv")
+        df_runs = run_batch(
+            all_testbenches,
+            str(raw_dir),
+            str(log_dir),
+            flagged_csv,
+            max_workers=max_workers,
+        )
+        run_lookup = {r["net_path"]: r for _, r in df_runs.iterrows()}
 
-    extracted_rows = []
-    raw_files_to_prune = []
+        # Step 5: Feature Extraction & Physics Normalization
+        print(f"\n========================================================")
+        print(f"STEP 5: [{pc_name}] Extracting Diagnostic Features & Physics Normalization")
+        print(f"========================================================")
 
-    # Maximum simulation window fallback for failed transitions (20ns = 20,000ps)
-    MAX_DELAY_PS = 20000.0
+        extracted_rows: List[Dict] = []
+        raw_files_to_prune: List[str] = []
 
-    for s in samples_plan:
-        sid = s["sample_id"]
-        tbs = s["testbenches"]
-        vdd = s["vdd_v"]
-        c_key = s["corner_key"]
-        ref = ref_metrics[c_key]
+        # Maximum simulation window fallback for failed transitions (20ns = 20,000ps)
+        MAX_DELAY_PS = 20000.0
 
-        res_hold = run_lookup[tbs["hold"]]
-        res_w1 = run_lookup[tbs["write"]]
-        res_w0 = run_lookup[tbs["write_0"]]
-        res_r1 = run_lookup[tbs["read"]]
-        res_r0 = run_lookup[tbs["read_0"]]
-        res_sh = run_lookup[tbs["snm_hold"]]
-        res_sr = run_lookup[tbs["snm_read"]]
+        for s in samples_plan:
+            sid = s["sample_id"]
+            tbs = s["testbenches"]
+            vdd = s["vdd_v"]
+            c_key = s["corner_key"]
+            ref = ref_metrics[c_key]
 
-        # Track .raw files for pruning
-        sample_raws = [
-            res_hold["raw_path"], res_w1["raw_path"], res_w0["raw_path"],
-            res_r1["raw_path"], res_r0["raw_path"], res_sh["raw_path"], res_sr["raw_path"]
-        ]
-        raw_files_to_prune.extend(sample_raws)
+            res_hold = run_lookup[tbs["hold"]]
+            res_w1 = run_lookup[tbs["write"]]
+            res_w0 = run_lookup[tbs["write_0"]]
+            res_r1 = run_lookup[tbs["read"]]
+            res_r0 = run_lookup[tbs["read_0"]]
+            res_sh = run_lookup[tbs["snm_hold"]]
+            res_sr = run_lookup[tbs["snm_read"]]
 
-        all_converged = all([
-            res_hold["converged"], res_w1["converged"], res_w0["converged"],
-            res_r1["converged"], res_r0["converged"], res_sh["converged"], res_sr["converged"]
-        ])
+            # Track .raw files for pruning
+            sample_raws = [
+                res_hold["raw_path"], res_w1["raw_path"], res_w0["raw_path"],
+                res_r1["raw_path"], res_r0["raw_path"], res_sh["raw_path"], res_sr["raw_path"]
+            ]
+            raw_files_to_prune.extend(sample_raws)
 
-        # Safely extract dynamic and SNM features
-        try:
-            raw_h = res_hold["raw_path"]
-            if Path(raw_h).exists() and Path(raw_h).stat().st_size > 0:
-                feat_h = extract_hold_features(raw_h, vdd=vdd)
-            else:
+            all_converged = all([
+                res_hold["converged"], res_w1["converged"], res_w0["converged"],
+                res_r1["converged"], res_r0["converged"], res_sh["converged"], res_sr["converged"]
+            ])
+
+            # Safely extract dynamic and SNM features
+            try:
+                raw_h = res_hold["raw_path"]
+                if Path(raw_h).exists() and Path(raw_h).stat().st_size > 0:
+                    feat_h = extract_hold_features(raw_h, vdd=vdd)
+                else:
+                    all_converged = False
+                    feat_h = {"v_q_final": 0.0, "v_qb_final": 0.0, "hold_pass": False, "i_ddq_uA": ref["iddq_ref_uA"] * 10.0}
+            except Exception:
                 all_converged = False
                 feat_h = {"v_q_final": 0.0, "v_qb_final": 0.0, "hold_pass": False, "i_ddq_uA": ref["iddq_ref_uA"] * 10.0}
-        except Exception:
-            all_converged = False
-            feat_h = {"v_q_final": 0.0, "v_qb_final": 0.0, "hold_pass": False, "i_ddq_uA": ref["iddq_ref_uA"] * 10.0}
 
-        try:
-            raw_w1 = res_w1["raw_path"]
-            if Path(raw_w1).exists() and Path(raw_w1).stat().st_size > 0:
-                feat_w1 = extract_write_features(raw_w1, target_state=1, vdd=vdd)
-            else:
+            try:
+                raw_w1 = res_w1["raw_path"]
+                if Path(raw_w1).exists() and Path(raw_w1).stat().st_size > 0:
+                    feat_w1 = extract_write_features(raw_w1, target_state=1, vdd=vdd)
+                else:
+                    all_converged = False
+                    feat_w1 = {"v_q_final": 0.0, "v_qb_final": 0.0, "write_pass": False, "t_write_ps": float("nan"), "i_peak_mA": 0.0}
+            except Exception:
                 all_converged = False
                 feat_w1 = {"v_q_final": 0.0, "v_qb_final": 0.0, "write_pass": False, "t_write_ps": float("nan"), "i_peak_mA": 0.0}
-        except Exception:
-            all_converged = False
-            feat_w1 = {"v_q_final": 0.0, "v_qb_final": 0.0, "write_pass": False, "t_write_ps": float("nan"), "i_peak_mA": 0.0}
 
-        try:
-            raw_w0 = res_w0["raw_path"]
-            if Path(raw_w0).exists() and Path(raw_w0).stat().st_size > 0:
-                feat_w0 = extract_write_features(raw_w0, target_state=0, vdd=vdd)
-            else:
+            try:
+                raw_w0 = res_w0["raw_path"]
+                if Path(raw_w0).exists() and Path(raw_w0).stat().st_size > 0:
+                    feat_w0 = extract_write_features(raw_w0, target_state=0, vdd=vdd)
+                else:
+                    all_converged = False
+                    feat_w0 = {"v_q_final": 0.0, "v_qb_final": 0.0, "write_pass": False, "t_write_ps": float("nan"), "i_peak_mA": 0.0}
+            except Exception:
                 all_converged = False
                 feat_w0 = {"v_q_final": 0.0, "v_qb_final": 0.0, "write_pass": False, "t_write_ps": float("nan"), "i_peak_mA": 0.0}
-        except Exception:
-            all_converged = False
-            feat_w0 = {"v_q_final": 0.0, "v_qb_final": 0.0, "write_pass": False, "t_write_ps": float("nan"), "i_peak_mA": 0.0}
 
-        try:
-            raw_r1 = res_r1["raw_path"]
-            if Path(raw_r1).exists() and Path(raw_r1).stat().st_size > 0:
-                feat_r1 = extract_read_features(raw_r1, stored_state=1, vdd=vdd)
-            else:
+            try:
+                raw_r1 = res_r1["raw_path"]
+                if Path(raw_r1).exists() and Path(raw_r1).stat().st_size > 0:
+                    feat_r1 = extract_read_features(raw_r1, stored_state=1, vdd=vdd)
+                else:
+                    all_converged = False
+                    feat_r1 = {"v_q_final": 0.0, "v_qb_final": 0.0, "read_stable_pass": False, "dv_bl_strobe_mV": 0.0, "t_sense_ps": float("nan"), "v_bump_mV": 0.0}
+            except Exception:
                 all_converged = False
                 feat_r1 = {"v_q_final": 0.0, "v_qb_final": 0.0, "read_stable_pass": False, "dv_bl_strobe_mV": 0.0, "t_sense_ps": float("nan"), "v_bump_mV": 0.0}
-        except Exception:
-            all_converged = False
-            feat_r1 = {"v_q_final": 0.0, "v_qb_final": 0.0, "read_stable_pass": False, "dv_bl_strobe_mV": 0.0, "t_sense_ps": float("nan"), "v_bump_mV": 0.0}
 
-        try:
-            raw_r0 = res_r0["raw_path"]
-            if Path(raw_r0).exists() and Path(raw_r0).stat().st_size > 0:
-                feat_r0 = extract_read_features(raw_r0, stored_state=0, vdd=vdd)
-            else:
+            try:
+                raw_r0 = res_r0["raw_path"]
+                if Path(raw_r0).exists() and Path(raw_r0).stat().st_size > 0:
+                    feat_r0 = extract_read_features(raw_r0, stored_state=0, vdd=vdd)
+                else:
+                    all_converged = False
+                    feat_r0 = {"v_q_final": 0.0, "v_qb_final": 0.0, "read_stable_pass": False, "dv_bl_strobe_mV": 0.0, "t_sense_ps": float("nan"), "v_bump_mV": 0.0}
+            except Exception:
                 all_converged = False
                 feat_r0 = {"v_q_final": 0.0, "v_qb_final": 0.0, "read_stable_pass": False, "dv_bl_strobe_mV": 0.0, "t_sense_ps": float("nan"), "v_bump_mV": 0.0}
-        except Exception:
-            all_converged = False
-            feat_r0 = {"v_q_final": 0.0, "v_qb_final": 0.0, "read_stable_pass": False, "dv_bl_strobe_mV": 0.0, "t_sense_ps": float("nan"), "v_bump_mV": 0.0}
 
-        try:
-            raw_sh = res_sh["raw_path"]
-            if Path(raw_sh).exists() and Path(raw_sh).stat().st_size > 0 and res_sh["converged"]:
-                feat_sh = extract_snm_features(raw_sh, mode="hold", vdd=vdd)
-            else:
+            try:
+                raw_sh = res_sh["raw_path"]
+                if Path(raw_sh).exists() and Path(raw_sh).stat().st_size > 0 and res_sh["converged"]:
+                    feat_sh = extract_snm_features(raw_sh, mode="hold", vdd=vdd)
+                else:
+                    all_converged = False
+                    feat_sh = {"hold_snm_v": 0.0, "hold_snm_state0_v": 0.0, "hold_snm_state1_v": 0.0, "hold_snm_asym_v": 0.0, "hold_snm_ok": False, "hold_bistable": False}
+            except Exception:
                 all_converged = False
                 feat_sh = {"hold_snm_v": 0.0, "hold_snm_state0_v": 0.0, "hold_snm_state1_v": 0.0, "hold_snm_asym_v": 0.0, "hold_snm_ok": False, "hold_bistable": False}
-        except Exception:
-            all_converged = False
-            feat_sh = {"hold_snm_v": 0.0, "hold_snm_state0_v": 0.0, "hold_snm_state1_v": 0.0, "hold_snm_asym_v": 0.0, "hold_snm_ok": False, "hold_bistable": False}
 
-        try:
-            raw_sr = res_sr["raw_path"]
-            if Path(raw_sr).exists() and Path(raw_sr).stat().st_size > 0 and res_sr["converged"]:
-                feat_sr = extract_snm_features(raw_sr, mode="read", vdd=vdd)
-            else:
+            try:
+                raw_sr = res_sr["raw_path"]
+                if Path(raw_sr).exists() and Path(raw_sr).stat().st_size > 0 and res_sr["converged"]:
+                    feat_sr = extract_snm_features(raw_sr, mode="read", vdd=vdd)
+                else:
+                    all_converged = False
+                    feat_sr = {"read_snm_v": 0.0, "read_snm_state0_v": 0.0, "read_snm_state1_v": 0.0, "read_snm_asym_v": 0.0, "read_snm_ok": False, "read_bistable": False}
+            except Exception:
                 all_converged = False
                 feat_sr = {"read_snm_v": 0.0, "read_snm_state0_v": 0.0, "read_snm_state1_v": 0.0, "read_snm_asym_v": 0.0, "read_snm_ok": False, "read_bistable": False}
-        except Exception:
-            all_converged = False
-            feat_sr = {"read_snm_v": 0.0, "read_snm_state0_v": 0.0, "read_snm_state1_v": 0.0, "read_snm_asym_v": 0.0, "read_snm_ok": False, "read_bistable": False}
 
-        # Dynamic Aggregates
-        w_delays = [feat_w1["t_write_ps"], feat_w0["t_write_ps"]]
-        valid_w_delays = [d for d in w_delays if not math.isnan(d)]
-        t_write_mean = float(np.mean(valid_w_delays)) if valid_w_delays else MAX_DELAY_PS
+            # Dynamic Aggregates
+            w_delays = [feat_w1["t_write_ps"], feat_w0["t_write_ps"]]
+            valid_w_delays = [d for d in w_delays if not math.isnan(d)]
+            t_write_mean = float(np.mean(valid_w_delays)) if valid_w_delays else MAX_DELAY_PS
 
-        s_delays = [feat_r1["t_sense_ps"], feat_r0["t_sense_ps"]]
-        valid_s_delays = [d for d in s_delays if not math.isnan(d)]
-        t_sense_mean = float(np.mean(valid_s_delays)) if valid_s_delays else MAX_DELAY_PS
+            s_delays = [feat_r1["t_sense_ps"], feat_r0["t_sense_ps"]]
+            valid_s_delays = [d for d in s_delays if not math.isnan(d)]
+            t_sense_mean = float(np.mean(valid_s_delays)) if valid_s_delays else MAX_DELAY_PS
 
-        dv_bl_mean = float(np.mean([feat_r1["dv_bl_strobe_mV"], feat_r0["dv_bl_strobe_mV"]]))
-        v_bump_max = float(max(feat_r1["v_bump_mV"], feat_r0["v_bump_mV"]))
-        i_write_peak = float(max(feat_w1["i_peak_mA"], feat_w0["i_peak_mA"]))
+            dv_bl_mean = float(np.mean([feat_r1["dv_bl_strobe_mV"], feat_r0["dv_bl_strobe_mV"]]))
+            v_bump_max = float(max(feat_r1["v_bump_mV"], feat_r0["v_bump_mV"]))
+            i_write_peak = float(max(feat_w1["i_peak_mA"], feat_w0["i_peak_mA"]))
 
-        snm_h = feat_sh["hold_snm_v"]
-        snm_r = feat_sr["read_snm_v"]
-        snm_drop = compute_read_hold_snm_drop(feat_sh, feat_sr)
-        is_bistable = bool(feat_sh["hold_bistable"] and feat_sr["read_bistable"])
+            snm_h = feat_sh["hold_snm_v"]
+            snm_r = feat_sr["read_snm_v"]
+            snm_drop = compute_read_hold_snm_drop(feat_sh, feat_sr)
+            is_bistable = bool(feat_sh["hold_bistable"] and feat_sr["read_bistable"])
 
-        # Physics-Normalized Invariant Features (relative to same-corner healthy cell)
-        iddq_norm = float(feat_h["i_ddq_uA"] / ref["iddq_ref_uA"])
-        t_write_norm = float(t_write_mean / ref["t_write_ref_ps"])
-        dv_bl_norm = float(dv_bl_mean / ref["dv_bl_ref_mV"])
-        snm_hold_norm = float(snm_h / ref["snm_hold_ref_v"])
-        snm_read_norm = float(snm_r / ref["snm_read_ref_v"])
+            # Physics-Normalized Invariant Features (relative to same-corner healthy cell)
+            iddq_norm = float(feat_h["i_ddq_uA"] / ref["iddq_ref_uA"])
+            t_write_norm = float(t_write_mean / ref["t_write_ref_ps"])
+            dv_bl_norm = float(dv_bl_mean / ref["dv_bl_ref_mV"])
+            snm_hold_norm = float(snm_h / ref["snm_hold_ref_v"])
+            snm_read_norm = float(snm_r / ref["snm_read_ref_v"])
 
-        # Dimensionless Internal Ratios
-        read_write_delay_ratio = float(t_sense_mean / max(t_write_mean, 1.0))
-        snm_ratio = float(snm_r / max(snm_h, 1e-4))
-        dv_bl_vdd_ratio = float(dv_bl_mean / (vdd * 1e3))
+            # Dimensionless Internal Ratios
+            read_write_delay_ratio = float(t_sense_mean / max(t_write_mean, 1.0))
+            snm_ratio = float(snm_r / max(snm_h, 1e-4))
+            dv_bl_vdd_ratio = float(dv_bl_mean / (vdd * 1e3))
 
-        row = {
-            # Metadata
-            "sample_id": sid,
-            "corner_id": s["corner_id"],
-            "pvt_type": s["pvt_type"],
-            "vdd_v": vdd,
-            "temperature_c": s["temperature_c"],
-            # Labels
-            "fault_class": s["fault_class"],
-            "fault_name": s["fault_name"],
-            "fault_target": s["fault_target"],
-            "severity_value": s["severity_value"],
-            # Raw Dynamic Features
-            "i_ddq_uA": feat_h["i_ddq_uA"],
-            "t_write_ps": round(t_write_mean, 1),
-            "i_write_peak_mA": round(i_write_peak, 3),
-            "dv_bl_strobe_mV": round(dv_bl_mean, 1),
-            "t_sense_ps": round(t_sense_mean, 1),
-            "v_bump_mV": round(v_bump_max, 1),
-            "hold_pass": int(feat_h["hold_pass"]),
-            "write_pass": int(feat_w1["write_pass"] and feat_w0["write_pass"]),
-            "read_stable_pass": int(feat_r1["read_stable_pass"] and feat_r0["read_stable_pass"]),
-            # Raw Static / SNM Features
-            "snm_hold_v": round(snm_h, 4),
-            "snm_read_v": round(snm_r, 4),
-            "snm_asym_hold_v": round(feat_sh["hold_snm_asym_v"], 4),
-            "snm_asym_read_v": round(feat_sr["read_snm_asym_v"], 4),
-            "snm_drop_v": round(snm_drop, 4),
-            "is_bistable": int(is_bistable),
-            # Physics-Normalized Invariant Features
-            "iddq_norm": round(iddq_norm, 4),
-            "t_write_norm": round(t_write_norm, 4),
-            "dv_bl_norm": round(dv_bl_norm, 4),
-            "snm_hold_norm": round(snm_hold_norm, 4),
-            "snm_read_norm": round(snm_read_norm, 4),
-            "read_write_delay_ratio": round(read_write_delay_ratio, 4),
-            "snm_ratio": round(snm_ratio, 4),
-            "dv_bl_vdd_ratio": round(dv_bl_vdd_ratio, 4),
-            # Integrity Flag
-            "converged": int(all_converged),
-        }
-        extracted_rows.append(row)
+            row = {
+                # Metadata
+                "sample_id": sid,
+                "corner_id": s["corner_id"],
+                "pvt_type": s["pvt_type"],
+                "process_corner": s["process_corner"],
+                "vdd_v": vdd,
+                "temperature_c": s["temperature_c"],
+                # Labels
+                "fault_class": s["fault_class"],
+                "fault_name": s["fault_name"],
+                "fault_target": s["fault_target"],
+                "severity_value": s["severity_value"],
+                # Raw Dynamic Features
+                "i_ddq_uA": feat_h["i_ddq_uA"],
+                "t_write_ps": round(t_write_mean, 1),
+                "i_write_peak_mA": round(i_write_peak, 3),
+                "dv_bl_strobe_mV": round(dv_bl_mean, 1),
+                "t_sense_ps": round(t_sense_mean, 1),
+                "v_bump_mV": round(v_bump_max, 1),
+                "hold_pass": int(feat_h["hold_pass"]),
+                "write_pass": int(feat_w1["write_pass"] and feat_w0["write_pass"]),
+                "read_stable_pass": int(feat_r1["read_stable_pass"] and feat_r0["read_stable_pass"]),
+                # Raw Static / SNM Features
+                "snm_hold_v": round(snm_h, 4),
+                "snm_read_v": round(snm_r, 4),
+                "snm_asym_hold_v": round(feat_sh["hold_snm_asym_v"], 4),
+                "snm_asym_read_v": round(feat_sr["read_snm_asym_v"], 4),
+                "snm_drop_v": round(snm_drop, 4),
+                "is_bistable": int(is_bistable),
+                # Physics-Normalized Invariant Features
+                "iddq_norm": round(iddq_norm, 4),
+                "t_write_norm": round(t_write_norm, 4),
+                "dv_bl_norm": round(dv_bl_norm, 4),
+                "snm_hold_norm": round(snm_hold_norm, 4),
+                "snm_read_norm": round(snm_read_norm, 4),
+                "read_write_delay_ratio": round(read_write_delay_ratio, 4),
+                "snm_ratio": round(snm_ratio, 4),
+                "dv_bl_vdd_ratio": round(dv_bl_vdd_ratio, 4),
+                # Integrity Flag
+                "converged": int(all_converged),
+            }
+            extracted_rows.append(row)
 
-    df_dataset = pd.DataFrame(extracted_rows)
+        # Step 5b: Prune .raw files for this process corner
+        if prune_raw:
+            print(f"\n  [{pc_name}] Cleaning up {len(raw_files_to_prune)} raw waveform files...")
+            prune_raw_files(raw_files_to_prune)
 
-    # Step 6: Prune .raw files to preserve disk space
-    if prune_raw:
-        print(f"\n========================================================")
-        print(f"STEP 6: Cleaning up raw waveform files")
-        print(f"========================================================")
-        n_pruned = prune_raw_files(raw_files_to_prune)
-        print(f"  Successfully deleted {n_pruned} temporary .raw files.")
+        all_extracted_rows.extend(extracted_rows)
+        print(f"\n  [{pc_name}] Completed: {len(extracted_rows)} rows accumulated "
+              f"(total so far: {len(all_extracted_rows)})")
+
+    # -----------------------------------------------------------------------
+    # End of process-corner loop -- assemble combined DataFrame
+    # -----------------------------------------------------------------------
+    df_dataset = pd.DataFrame(all_extracted_rows)
 
     # Step 7: Export Clean Datasets
     print(f"\n========================================================")
@@ -626,7 +781,9 @@ def generate_sram_dataset(
     n_conv = int(df_dataset["converged"].sum())
     print(f"\nDataset Generation Summary:")
     print(f"  Total samples generated: {len(df_dataset)}")
-    print(f"  Converged samples:       {n_conv} / {len(df_dataset)} (100.0%)")
+    print(f"  Converged samples:       {n_conv} / {len(df_dataset)}")
+    if "process_corner" in df_dataset.columns:
+        print(f"  Process corner breakdown:\n{df_dataset['process_corner'].value_counts().to_string()}")
     print(f"  Fault class breakdown:\n{df_dataset['fault_name'].value_counts().to_string()}")
 
     return df_dataset
@@ -634,10 +791,12 @@ def generate_sram_dataset(
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Generate SRAM fault diagnostic dataset across PVT corners.")
+    parser = argparse.ArgumentParser(description="Generate SRAM fault diagnostic dataset across PVT and Process corners.")
     parser.add_argument("--workers", type=int, default=8, help="Number of concurrent worker threads.")
     parser.add_argument("--no-prune", action="store_true", help="Do not delete .raw files after extraction.")
     parser.add_argument("--pilot", action="store_true", help="Run 2-corner pilot test rather than full 15 corners.")
+    parser.add_argument("--process-corners", type=str, default=None,
+                        help="Comma-separated process corners to run (e.g. 'TT' or 'TT,FF,SS'). Default runs all.")
     args = parser.parse_args()
 
     selected_corners = None
@@ -645,8 +804,13 @@ if __name__ == "__main__":
         print("[PILOT MODE] Running 2 PVT corners: (1.0V, 27C) and (0.9V, -40C)")
         selected_corners = [(1.0, 27.0), (0.9, -40.0)]
 
+    selected_procs = None
+    if args.process_corners:
+        selected_procs = [p.strip().upper() for p in args.process_corners.split(",") if p.strip()]
+
     generate_sram_dataset(
         max_workers=args.workers,
         prune_raw=not args.no_prune,
         selected_corners=selected_corners,
+        selected_process_corners=selected_procs,
     )

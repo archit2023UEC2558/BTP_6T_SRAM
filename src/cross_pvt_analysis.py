@@ -149,9 +149,9 @@ def plot_loco_comparison(
         pivot = rf_df.pivot(index="corner", columns="feature_set", values="accuracy")
         pivot["Improvement (%)"] = (pivot["invariant"] - pivot["raw"]) * 100.0
 
-        plt.figure(figsize=(8, 10))
+        plt.figure(figsize=(9, 16))
         sns.heatmap(pivot[["raw", "invariant"]], annot=True, fmt=".3f", cmap="YlGnBu", cbar=True)
-        plt.title("Random Forest LOCO Accuracy across 15 PVT Corners")
+        plt.title("Random Forest LOCO Accuracy across PVT & Process Corners")
         plt.xlabel("Feature Representation")
         plt.ylabel("Held-Out PVT Corner")
 

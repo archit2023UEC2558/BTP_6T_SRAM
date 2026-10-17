@@ -155,8 +155,8 @@ Normalized relative to a concurrent on-die healthy reference cell simulated at t
 - [ ] Tree SHAP (SHapley Additive exPlanations) attribution analysis:
   * Computing global feature importance values (demonstrating `dv_bl_norm` and `t_write_norm` dominate decisions).
   * Class-specific beeswarm and waterfall diagnostic plots.
-- [ ] Hardware BIST Implementation:
-  * Developing a lightweight embedded C / MicroPython inference routine for on-chip test co-processors.
+- [ ] Process Corner & Monte Carlo Extension:
+  * Incorporate statistical inter-die process corners (Fast-Fast, Slow-Slow) into the simulation framework.
 - [ ] Final Research Publication & Thesis:
   * Writing full IEEE-format conference/journal manuscript and complete BTP thesis.
 

@@ -22,6 +22,11 @@ import argparse
 import os
 from pathlib import Path
 from typing import Dict, List, Tuple
+import sys
+from pathlib import Path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 import joblib
 import numpy as np
 import pandas as pd
@@ -35,7 +40,6 @@ from sklearn.svm import SVC
 
 from src.baseline_detector import BaselineRuleDetector
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 MODELS_DIR = PROJECT_ROOT / "models"
 REPORTS_DIR = PROJECT_ROOT / "reports" / "final_results"
@@ -138,9 +142,9 @@ def run_standard_split_protocol(
     
     Validates zero sample_id leakage between train and test splits.
     """
-    nom_df = df[df["corner_id"] == "C_27C_1P0V"].copy()
+    nom_df = df[df["corner_id"].isin(["TT_C_27C_1P0V", "C_27C_1P0V"])].copy()
     if len(nom_df) == 0:
-        raise ValueError("Nominal corner C_27C_1P0V not found in dataset.")
+        raise ValueError("Nominal corner (TT_C_27C_1P0V or C_27C_1P0V) not found in dataset.")
 
     results = []
     trained_models = {}

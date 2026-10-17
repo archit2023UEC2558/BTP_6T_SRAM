@@ -358,8 +358,11 @@ def run_simulation(
         if is_dc:
             dc_ok, dc_warn = check_dc_integrity(raw_path, vdd=net_vdd)
             if not dc_ok:
-                converged = False
                 warning = dc_warn
+                # Only mark non-converged if it was a true numerical/format failure,
+                # not a physical defect signature like non-monotonic VTC.
+                if dc_warn != "snm_nonmonotonic":
+                    converged = False
 
     # -----------------------------------------------------------------------
     # Extract LTspice version string from first log line

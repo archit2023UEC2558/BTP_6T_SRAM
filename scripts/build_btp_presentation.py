@@ -328,7 +328,7 @@ def build_presentation():
     tf13.word_wrap = True
 
     add_bullet_point(tf13, "Formal Research Manuscript", "Finalize full academic paper (IEEE transactions/conference format) synthesizing results.", font_size=24, space_after=16)
-    add_bullet_point(tf13, "Hardware BIST Integration Script", "Implement lightweight C/MicroPython inference routine for on-chip test co-processors.", font_size=24, space_after=16)
+    add_bullet_point(tf13, "Process Corner & Statistical Variation Modeling", "Extend the framework to evaluate inter-die process corners (FF, SS) and Monte Carlo variations.", font_size=24, space_after=16)
     add_bullet_point(tf13, "Extended Fault Taxonomy", "Explore multi-cell coupling defects and adjacent bitline bridging faults.", font_size=24, space_after=16)
     add_bullet_point(tf13, "Target Completion Schedule", "Weeks 10–12: Manuscript writing & peer review | Weeks 13–14: Final thesis & oral defense.", font_size=24, space_after=0)
 

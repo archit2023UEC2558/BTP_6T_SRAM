@@ -145,7 +145,7 @@
 - **Main Idea:** Future work scope leading to final submission.
 - **Bullets:**
   * **Formal Research Manuscript:** Finalize full academic paper (IEEE transactions/conference format) synthesizing results.
-  * **Hardware BIST Integration Script:** Implement lightweight C/MicroPython inference routine for on-chip test co-processors.
+  * **Process Corner & Statistical Variation Modeling:** Extend the framework to evaluate inter-die process corners (FF, SS) and Monte Carlo variations.
   * **Extended Fault Taxonomy:** Explore multi-cell coupling defects and adjacent bitline bridging faults.
   * **Target Completion Schedule:** Weeks 10–12: Manuscript writing & peer review | Weeks 13–14: Final thesis & oral defense.
 
