@@ -104,6 +104,10 @@ def _candidate_paths_for_drive(drive: str) -> List[Path]:
     ]
 
 
+_CACHED_LTSPICE_EXE = None
+_CACHED_SIMULATOR_CLS = None
+
+
 def _resolve_ltspice_exe() -> str:
     """
     Resolve the LTspice executable path using the following priority order:
@@ -120,11 +124,16 @@ def _resolve_ltspice_exe() -> str:
     str
         Absolute path to the LTspice executable.
     """
+    global _CACHED_LTSPICE_EXE
+    if _CACHED_LTSPICE_EXE and Path(_CACHED_LTSPICE_EXE).exists():
+        return _CACHED_LTSPICE_EXE
+
     # ---- 1. config.yaml -------------------------------------------------------
     config = _load_config()
     configured = config.get("ltspice_path", None)
     if configured and configured != "null" and Path(configured).exists():
-        return str(configured)
+        _CACHED_LTSPICE_EXE = str(configured)
+        return _CACHED_LTSPICE_EXE
 
     # ---- 2. spicelib / PyLTSpice built-in detection ---------------------------
     try:
@@ -263,10 +272,6 @@ def run_simulation(
         warning        : str|None   -- matched failure marker string, or None
         ltspice_version: str|None   -- version string from first line of .log
     """
-    from PyLTSpice import SimRunner
-    from spicelib.simulators.ltspice_simulator import LTspice as LTspiceSim
-    from spicelib.editor.spice_editor import SpiceEditor
-
     raw_output_dir = Path(raw_output_dir)
     log_output_dir = Path(log_output_dir)
     raw_output_dir.mkdir(parents=True, exist_ok=True)
@@ -274,11 +279,12 @@ def run_simulation(
 
     stem = _stable_stem(net_path)
 
-    # Resolve LTspice path (config.yaml -> auto-detect -> error)
-    ltspice_exe = _resolve_ltspice_exe()
-
-    # Build a simulator class from the resolved executable path
-    simulator_cls = LTspiceSim.create_from(ltspice_exe)
+    global _CACHED_SIMULATOR_CLS
+    if _CACHED_SIMULATOR_CLS is None:
+        ltspice_exe = _resolve_ltspice_exe()
+        from spicelib.simulators.ltspice_simulator import LTspice as LTspiceSim
+        _CACHED_SIMULATOR_CLS = LTspiceSim.create_from(ltspice_exe)
+    simulator_cls = _CACHED_SIMULATOR_CLS
 
     # Ensure netlist exists in raw_output_dir as {stem}.net
     run_net = raw_output_dir / f"{stem}.net"
@@ -527,10 +533,14 @@ def run_batch(
                 executor.submit(run_simulation, net_path, raw_output_dir, log_output_dir)
                 for net_path in net_paths
             ]
+            completed_count = 0
             for future in future_to_net:
                 result = future.result()
-                status = "OK" if result["converged"] else f"FAILED ({result['warning']})"
-                print(f"  Completed: {Path(result['net_path']).name} ... {status}")
+                completed_count += 1
+                if not result["converged"]:
+                    print(f"  Flagged: {Path(result['net_path']).name} ... FAILED ({result['warning']})")
+                elif completed_count % 100 == 0 or completed_count == len(net_paths):
+                    print(f"  Progress: {completed_count}/{len(net_paths)} simulations completed...", flush=True)
                 results.append(result)
 
     df = pd.DataFrame(

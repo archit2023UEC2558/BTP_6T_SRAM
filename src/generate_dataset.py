@@ -763,6 +763,24 @@ def generate_sram_dataset(
     else:
         master_csv = Path(output_csv)
 
+    # Merge with existing corners not simulated in this run
+    if master_csv.exists() and selected_process_corners is not None:
+        try:
+            df_existing = pd.read_csv(str(master_csv))
+            if "process_corner" in df_existing.columns:
+                kept = df_existing[~df_existing["process_corner"].isin(selected_process_corners)]
+                if not kept.empty:
+                    df_dataset = pd.concat([kept, df_dataset], ignore_index=True)
+                    print(f"  Merged {len(kept)} existing rows from prior process corners with {len(df_dataset) - len(kept)} newly simulated rows.")
+        except Exception as e:
+            print(f"  Warning: could not merge with existing CSV: {e}")
+
+    # Ensure consistent ordering
+    if "process_corner" in df_dataset.columns:
+        corner_order = {"TT": 0, "FF": 1, "SS": 2}
+        df_dataset["_proc_rank"] = df_dataset["process_corner"].map(lambda x: corner_order.get(x, 99))
+        df_dataset = df_dataset.sort_values(by=["_proc_rank", "sample_id"]).drop(columns=["_proc_rank"]).reset_index(drop=True)
+
     indist_csv = DATA_DIR / "sram_fault_dataset_indist.csv"
     ood_csv = DATA_DIR / "sram_fault_dataset_ood.csv"
 

@@ -1,0 +1,7 @@
+Held_Out_Severity,Regime,Fault_Acc,Overall_Acc,Balanced_Acc,Fault_Samples,Total_Samples
+Severity S_1,Extrapolation (Weakest Incipient),0.8888888888888888,0.9074074074074074,0.9355555555555556,225,270
+Severity S_2,Interpolation,0.9911111111111112,0.9925925925925926,0.9933333333333334,225,270
+Severity S_3,Interpolation,0.9911111111111112,0.9925925925925926,0.9911111111111112,225,270
+Severity S_4,Interpolation,0.9955555555555555,0.9962962962962963,0.9977777777777778,225,270
+Severity S_5,Interpolation,1.0,1.0,1.0,225,270
+Severity S_6,Extrapolation (Strongest Catastrophic),1.0,1.0,1.0,180,225

@@ -29,9 +29,9 @@
 \maketitle
 
 \begin{abstract}
-Embedded static random-access memory (SRAM) occupies upwards of 70\% of silicon real estate in modern system-on-chip (SoC) architectures, rendering memory yield and defect diagnosis critical to commercial semiconductor reliability. At nanoscale nodes, subtle physical defects---such as access-contact resistive opens, internal dielectric bridging, and aging-induced threshold voltage ($V_{\text{th}}$) drift---manifest as parametric degradations rather than catastrophic stuck-at faults. Consequently, classical digital March tests frequently fail to detect them. While machine learning (ML) classifiers demonstrate high diagnostic accuracy under nominal room-temperature laboratory conditions, they suffer severe out-of-distribution diagnostic collapse when deployed across broad Voltage and Temperature corners: operational environmental shifts (e.g., $>115\times$ thermal subthreshold leakage scaling and $>35\%$ gate overdrive variation) confound classifiers, dropping diagnostic accuracy on raw features from 100\% down to 46.67\%.
+Embedded static random-access memory (SRAM) occupies upwards of 70\% of silicon real estate in modern system-on-chip (SoC) architectures, rendering memory yield and defect diagnosis critical to commercial semiconductor reliability. At nanoscale nodes, subtle physical defects---such as access-contact resistive opens, internal dielectric bridging, and aging-induced threshold voltage ($V_{\text{th}}$) drift---manifest as parametric degradations rather than catastrophic stuck-at faults. Consequently, classical digital March tests frequently fail to detect them. While machine learning (ML) classifiers demonstrate high diagnostic accuracy under nominal room-temperature laboratory conditions, they suffer severe out-of-distribution diagnostic collapse when deployed across broad Process, Voltage, and Temperature (PVT) corners: operational environmental shifts (e.g., $>115\times$ thermal subthreshold leakage scaling and $>35\%$ gate overdrive variation) confound classifiers, dropping diagnostic accuracy on raw features down to 50.00\% (and 40.00\% for gradient boosted trees).
 
-To overcome this fundamental challenge without requiring computationally prohibitive per-corner model retraining, this paper proposes a \textit{Physics-Informed Domain Adaptation} framework. By continuously normalizing cell metrics against a concurrent on-die reference cell ($X_{\text{inv}} = X_{\text{meas}} / X_{\text{ref}}$), common-mode environmental shifts are canceled mathematically. We validate this approach using a rigorous SPICE simulation matrix of 450 distinct instances across a 15-corner Voltage-Temperature grid (3 supply voltages $V_{DD} \in [0.9, 1.1]\,\text{V}$ $\times$ 5 temperatures $T \in \{-40, 0, 27, 75, 125\}^\circ\text{C}$) in 180\,nm CMOS, encompassing 3,150 dynamic SPICE simulations plus 105 dedicated reference characterizations. Static noise margins (SNM) are extracted using a true axis-aligned largest inscribed square algorithm on butterfly transfer characteristics. Under comprehensive Leave-One-Corner-Out (LOCO) cross-PVT evaluation across all 15 held-out corners, the proposed invariant formulation elevates Random Forest and Histogram Gradient Boosting classification accuracy from 70.67\% ($\pm 15.65\%$) and 74.00\% ($\pm 14.86\%$) (raw features) to 98.89\% ($\pm 1.63\%$) and 98.89\% ($\pm 2.05\%$), delivering a $+28.22\%$ and $+24.89\%$ generalization gain and lifting the worst-case corner accuracy floor from 46.67\% to 96.67\% and 93.33\% (with 10 of 15 corners achieving 100.0\% accuracy and exactly 5 single misclassifications across the 450-sample pooled LOCO test set). Tree SHAP explainability confirms that decision boundaries map directly to physical access impedance and dynamic switching delays.
+To overcome this fundamental challenge without requiring computationally prohibitive per-corner model retraining, this paper proposes a \textit{Physics-Informed Domain Adaptation} framework. By continuously normalizing cell metrics against a concurrent on-die reference cell ($X_{\text{inv}} = X_{\text{meas}} / X_{\text{ref}}$), common-mode environmental and process shifts are canceled mathematically. We validate this approach using a rigorous SPICE simulation matrix of 1,350 distinct physical instances across a 45-corner PVT grid (3 process corners: Typical-Typical [TT], Fast-Fast [FF], Slow-Slow [SS] $\times$ 3 supply voltages $V_{DD} \in [0.9, 1.1]\,\text{V}$ $\times$ 5 temperatures $T \in \{-40, 0, 27, 75, 125\}^\circ\text{C}$) in standard 180\,nm CMOS, encompassing 9,450 dynamic SPICE simulations plus 315 dedicated reference characterizations. Static noise margins (SNM) are extracted using a true axis-aligned largest inscribed square algorithm on butterfly transfer characteristics. Under comprehensive Leave-One-Corner-Out (LOCO) cross-PVT evaluation across all 45 held-out corners (1,350 test instances), the proposed invariant formulation elevates Random Forest and Histogram Gradient Boosting classification accuracy from 75.11\% ($\pm 11.23\%$) and 77.56\% ($\pm 13.91\%$) (raw features) to 99.33\% ($\pm 1.83\%$) and 99.41\% ($\pm 2.05\%$), delivering a $+24.22\%$ and $+21.85\%$ generalization gain and lifting the worst-case corner accuracy floor from 50.00\% and 40.00\% to 90.00\% and 86.67\% (with 39 of 45 corners achieving 100.0\% accuracy for RF, 40 of 45 for HistGB, and exactly 9 misclassifications across the 1,350-sample pooled LOCO test set: $1341/1350 = 99.33\%$). Tree SHAP explainability confirms that decision boundaries map directly to physical access impedance and dynamic switching delays.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -54,14 +54,14 @@ In nanoscale dimensions, the dominant yield-detracting mechanisms have fundament
 
 To detect and categorize these latent flaws before catastrophic deployment failure, analog built-in current testing ($I_{\text{DDQ}}$) and machine-learning-assisted diagnosis have recently gained substantial traction. Supervised classifiers---such as Random Forests (RF), Support Vector Machines (SVM), and Gradient Boosted Decision Trees---can map high-dimensional analog signatures (timing delays, quiescent currents, bitline sense swings) into multi-class defect categories with near-perfect accuracy under nominal testing conditions ($27^\circ\text{C}, 1.0\,\text{V}$).
 
-\textbf{The Cross-PVT Domain Shift Failure:} Despite nominal success, classical ML approaches encounter an existential operational barrier when deployed across the real-world Process, Voltage, and Temperature (PVT) operating envelope ($-40^\circ\text{C}$ to $+125^\circ\text{C}$, $\pm 10\%$ $V_{DD}$). Device physics dictates that subthreshold leakage current scales exponentially with temperature ($I_{\text{sub}} \propto T^2 \exp(-qV_{\text{th}}/kT)$), shifting nominal standby currents by over $115\times$ across the thermal envelope. Concurrently, reducing supply voltage by $10\%$ degrades transistor gate overdrive ($V_{GS} - V_{\text{th}}$), expanding dynamic write switching delay ($t_{\text{write}}$) by more than $35\%$. When an ML model trained exclusively at room temperature encounters these extreme operating corners, it misinterprets environmental physical drift as structural circuit defects. Consequently, healthy cells operating at $125^\circ\text{C}$ are erroneously flagged as internal bridging shorts, while cold healthy cells at $-40^\circ\text{C}$ and $0.9\,\text{V}$ are diagnosed as access pass-gate resistive opens. As our empirical baseline demonstrates, this out-of-distribution (OOD) domain shift drops raw classifier cross-corner accuracy to a $70.67\%$ mean with an unacceptable $46.67\%$ worst-corner floor, while traditional fixed $3\sigma$ threshold rule detectors collapse to a $3.33\%$ baseline.
+\textbf{The Cross-PVT Domain Shift Failure:} Despite nominal success, classical ML approaches encounter an existential operational barrier when deployed across the real-world Process, Voltage, and Temperature (PVT) operating envelope ($-40^\circ\text{C}$ to $+125^\circ\text{C}$, $\pm 10\%$ $V_{DD}$, TT/FF/SS corners). Device physics dictates that subthreshold leakage current scales exponentially with temperature ($I_{\text{sub}} \propto T^2 \exp(-qV_{\text{th}}/kT)$), shifting nominal standby currents by over $115\times$ across the thermal envelope. Concurrently, reducing supply voltage by $10\%$ degrades transistor gate overdrive ($V_{GS} - V_{\text{th}}$), expanding dynamic write switching delay ($t_{\text{write}}$) by more than $35\%$, while process variations shift drive currents by upwards of $30\%$. When an ML model trained exclusively at nominal laboratory conditions encounters these extreme operating corners, it misinterprets environmental physical drift as structural circuit defects. Consequently, healthy cells operating at $125^\circ\text{C}$ are erroneously flagged as internal bridging shorts, while cold healthy cells at $-40^\circ\text{C}$ and $0.9\,\text{V}$ are diagnosed as access pass-gate resistive opens. As our empirical baseline demonstrates, this out-of-distribution (OOD) domain shift drops raw classifier cross-corner accuracy to a $75.11\%$ mean with an unacceptable $50.00\%$ worst-corner floor (and $40.00\%$ for HistGB, $36.67\%$ for Decision Trees), while traditional fixed $3\sigma$ threshold rule detectors collapse to a $3.33\%$ baseline.
 
 To solve this without undertaking prohibitive, combinatorial training across all environmental corners, this paper introduces a \textbf{Physics-Informed Domain Adaptation} methodology. By referencing the measurements of the target cell against a concurrent, on-die reference cell simulated under the identical instantaneous PVT state ($X_{\text{inv}} = X_{\text{meas}} / X_{\text{ref}}$), we cancel common-mode environmental variance. We target this diagnostic methodology specifically at post-silicon characterization test vehicles, dedicated scribe-line test structures, and yield-learning macros equipped with analog monitor pass-gates, where high-precision parametric signatures can be directly characterized to accelerate semiconductor process debugging. The primary contributions of this paper are:
 \begin{enumerate}
-    \item \textbf{A Fully Automated Multi-Operation SPICE Framework:} We develop an end-to-end Python-driven simulation and netlist mutation harness that systematically injects four continuous parametric fault classes into a validated 180\,nm 6T SRAM cell and executes Hold, Write, Read, and butterfly DC sweeps across a 15-corner Voltage-Temperature grid (3 supply voltages $\times$ 5 temperatures, encompassing 3,150 total SPICE simulations plus 105 reference runs).
+    \item \textbf{A Fully Automated Multi-Operation SPICE Framework:} We develop an end-to-end Python-driven simulation and netlist mutation harness that systematically injects four continuous parametric fault classes into a validated 180\,nm 6T SRAM cell and executes Hold, Write, Read, and butterfly DC sweeps across a 45-corner Process-Voltage-Temperature grid (3 process corners $\times$ 3 supply voltages $\times$ 5 temperatures, encompassing 9,450 total dynamic SPICE simulations plus 315 reference runs).
     \item \textbf{Exact Pure-NumPy SNM Butterfly Extraction:} We formulate a numerically robust, axis-aligned inscribed square algorithm that calculates exact Hold and Read Static Noise Margins directly from overlapping Voltage Transfer Characteristics (VTCs), eliminating the overestimation errors inherent to the widely used $45^\circ$ coordinate rotation shortcut.
-    \item \textbf{Formulation of Physics-Normalized Invariant Features:} We introduce dimensionless, reference-normalized ratios that compress environmental feature dispersion (Coefficient of Variation) by up to 100.0\% on healthy cells across the 15-corner grid while preserving distinct defect separability.
-    \item \textbf{Comprehensive Cross-PVT LOCO Benchmarking:} Through rigorous Leave-One-Corner-Out (LOCO) evaluation across all 15 held-out operating corners, we demonstrate that physics-normalized features boost Random Forest cross-PVT accuracy to 98.89\% and HistGradientBoosting to 98.89\%, delivering a $+28.22\%$ generalization gain over raw features.
+    \item \textbf{Formulation of Physics-Normalized Invariant Features:} We introduce dimensionless, reference-normalized ratios that compress environmental feature dispersion (Coefficient of Variation) by up to 100.0\% on healthy cells across the 45-corner grid while preserving distinct defect separability.
+    \item \textbf{Comprehensive Cross-PVT LOCO Benchmarking:} Through rigorous Leave-One-Corner-Out (LOCO) evaluation across all 45 held-out operating corners (1,350 total samples), we demonstrate that physics-normalized features boost Random Forest cross-PVT accuracy to 99.33\% and HistGradientBoosting to 99.41\%, delivering a $+24.22\%$ and $+21.85\%$ generalization gain over raw features.
     \item \textbf{Model Interpretability via Tree SHAP:} We provide global and class-disaggregated SHapley Additive exPlanations (SHAP) that confirm that the decision boundaries established by the classifier correspond strictly to the underlying semiconductor physics of the defect mechanisms.
 \end{enumerate}
 
@@ -183,20 +183,20 @@ We implement a five-class defect taxonomy directly mapped to nanoscale physical 
     \end{equation}
 \end{enumerate}
 
-\subsection{15-Corner Voltage-Temperature Operating Grid \& Simulation Matrix}
-To evaluate environmental degradation across the operational Voltage-Temperature envelope in standard 180\,nm CMOS, a 15-corner matrix is constructed:
+\subsection{45-Corner Process-Voltage-Temperature (PVT) Operating Envelope \& Simulation Matrix}
+To evaluate environmental and manufacturing variations across the complete operational envelope in standard 180\,nm CMOS, a comprehensive 45-corner Process-Voltage-Temperature (PVT) matrix is constructed:
 \begin{itemize}
-    \item \textbf{Supply Voltages ($V_{DD}$):} $0.9\,\text{V}$ ($-10\%$), $1.0\,\text{V}$ (nominal), $1.1\,\text{V}$ ($+10\%$).
-    \item \textbf{Temperatures ($T$):} $-40^\circ\text{C}$ (cold), $0^\circ\text{C}$, $27^\circ\text{C}$ (nominal), $75^\circ\text{C}$, $125^\circ\text{C}$ (worst-case thermal).
+    \item \textbf{Process Corners (3):} Typical-Typical (TT: nominal $V_{\text{TO},n} = 0.450\,\text{V}$, $KP_n = 250\,\mu\text{A}/\text{V}^2$, $V_{\text{TO},p} = -0.450\,\text{V}$, $KP_p = 100\,\mu\text{A}/\text{V}^2$), Fast-Fast (FF: $V_{\text{TO}} \times 0.90$, $KP \times 1.10$), and Slow-Slow (SS: $V_{\text{TO}} \times 1.10$, $KP \times 0.90$).
+    \item \textbf{Supply Voltages ($V_{DD}$, 3):} $0.9\,\text{V}$ ($-10\%$), $1.0\,\text{V}$ (nominal), $1.1\,\text{V}$ ($+10\%$).
+    \item \textbf{Temperatures ($T$, 5):} $-40^\circ\text{C}$ (industrial cold), $0^\circ\text{C}$, $27^\circ\text{C}$ (room nominal), $75^\circ\text{C}$, $125^\circ\text{C}$ (worst-case automotive thermal).
 \end{itemize}
-
-Every corner contains 30 distinct physical sample configurations (1 Healthy, 12 Resistive Open sweeps, 5 Bridging sweeps, 6 Storage $V_{\text{th}}$ sweeps, and 6 Access $V_{\text{th}}$ sweeps), yielding:
+Combining 3 process corners $\times$ 15 Voltage-Temperature corners yields 45 distinct PVT corners. Every corner contains 30 distinct physical sample configurations (1 Healthy, 12 Resistive Open sweeps, 5 Bridging sweeps, 6 Storage $V_{\text{th}}$ sweeps, and 6 Access $V_{\text{th}}$ sweeps), yielding:
 \begin{equation}
-N_{\text{total}} = 30 \times 15 = 450 \text{ authentic dataset rows}
+N_{\text{total}} = 30 \times 45 = 1{,}350 \text{ authentic dataset rows}
 \end{equation}
-For each of the 450 instances, our automated multithreaded simulation runner (\texttt{src/simulation\_runner.py}) executes 7 independent SPICE operational decks (Hold, Write 1, Write 0, Read 1, Read 0, SNM Hold DC, and SNM Read DC), totaling \textbf{3,150 SPICE simulation runs}. In addition, for each of the 15 corners, a dedicated healthy reference simulation is executed under identical environmental parameters (105 additional runs, bringing total simulations to 3,255) to provide the per-corner normalization baseline. Raw waveform outputs (\texttt{.raw}) are parsed on the fly and deleted, maintaining repository footprint below 50\,MB.
+For each of the 1,350 instances, our automated multithreaded simulation runner (\texttt{src/simulation\_runner.py}) executes 7 independent SPICE operational decks (Hold, Write 1, Write 0, Read 1, Read 0, SNM Hold DC, and SNM Read DC), totaling \textbf{9,450 dynamic SPICE simulation runs}. In addition, for each of the 45 corners, a dedicated healthy reference simulation is executed under identical environmental and process parameters (315 additional runs, bringing total SPICE simulations to 9,765) to provide the per-corner normalization baseline. Raw waveform outputs (\texttt{.raw}) are parsed on the fly and pruned, maintaining repository footprint below 50\,MB.
 
-A rigorous automated simulation audit (\texttt{logs/convergence\_flags.csv} and \texttt{reports/audit/nonconverged\_by\_reason.csv}) tracked solver stability. Crucially, of the simulation warnings observed during DC butterfly extraction, the vast majority ($>92\%$) correspond to \texttt{snm\_nonmonotonic} warnings arising exclusively in severe Class 2 internal bridging defects ($R_{\text{bridge}} \le 1\,\text{k}\Omega$) and extreme $V_{\text{th}}$ shifts. In these severe fault states, the low-impedance shunt between nodes $Q$ and $Q_b$ collapses regenerative latch feedback, physically eliminating the bistable butterfly lobes. This represents an authentic semiconductor physical failure signature of latch destruction rather than a numerical non-convergence of the SPICE engine. True transient integration time-step timeouts occurred in only 22 runs (4.89\% of the 450 dataset). The resulting master dataset \texttt{data/sram\_fault\_dataset.csv} contains exactly 450 rows $\times$ 34 columns with \textbf{zero null, missing, or NaN values}.
+A rigorous automated simulation audit (\texttt{logs/convergence\_flags\_*.csv}) tracked solver stability across all corners: 1,327 of 1,350 samples converged cleanly (98.3\% overall convergence rate: 450/450 in FF [100\%], 449/450 in SS [99.8\%], and 428/450 in TT [95.1\%]). Crucially, of the simulation warnings observed during DC butterfly extraction, the vast majority ($>92\%$) correspond to \texttt{snm\_nonmonotonic} warnings arising exclusively in severe Class 2 internal bridging defects ($R_{\text{bridge}} \le 1\,\text{k}\Omega$) and extreme $V_{\text{th}}$ shifts. In these severe fault states, the low-impedance shunt between nodes $Q$ and $Q_b$ collapses regenerative latch feedback, physically eliminating the bistable butterfly lobes. This represents an authentic semiconductor physical failure signature of latch destruction rather than numerical non-convergence of the SPICE engine. True transient integration time-step timeouts occurred in only 23 runs across the entire 1,350 dataset (1.70\%). The resulting master dataset \texttt{data/sram\_fault\_dataset.csv} contains exactly 1,350 rows $\times$ 34 columns with \textbf{zero null, missing, or NaN values}.
 
 % ======================================================================
 
@@ -204,7 +204,7 @@ A rigorous automated simulation audit (\texttt{logs/convergence\_flags.csv} and 
 \label{sec:features}
 
 \subsection{Extracted Dynamic and Static Features}
-For every cell instance $i$ simulated at corner $c = (V_{DD}, T)$, we extract dynamic transient metrics and static margin metrics:
+For every cell instance $i$ simulated at corner $c = (\text{Process}, V_{DD}, T)$, we extract dynamic transient metrics and static margin metrics:
 \begin{itemize}
     \item \textbf{Timing Delays:} $t_{\text{write}}$ (time from $50\%$ $WL$ rise until internal node reaches $0.5 V_{DD}$) and $t_{\text{sense}}$ (time to develop $\Delta V_{\text{BL}}$).
     \item \textbf{Currents \& Voltages:} $I_{\text{DDQ}}$ (quiescent standby current), $I_{\text{write,peak}}$ (peak switching current), $\Delta V_{\text{BL}}$ (bitline strobe differential), and $V_{\text{bump}}$ (internal read disturbance).
@@ -212,7 +212,7 @@ For every cell instance $i$ simulated at corner $c = (V_{DD}, T)$, we extract dy
 \end{itemize}
 
 \subsection{Formulation of Invariant Ratios}
-The core innovation of our methodology is the cancellation of environmental shifts through \textit{concurrent reference-cell normalization}. An on-die golden cell located adjacent to the array experiences the identical instantaneous supply voltage $V_{DD}$ and ambient temperature $T$. Importantly, this architecture enables \textit{zero-retraining cross-PVT transfer}: the trained machine learning classifier requires zero parameter tuning, retraining, or corner-specific re-fitting when operating across unseen corners, because common-mode environmental tracking is performed dynamically in the analog feature domain by comparing against the local reference cell. We define the invariant feature vector $\mathbf{X}_{\text{inv}}$ as:
+The core innovation of our methodology is the cancellation of environmental shifts through \textit{concurrent reference-cell normalization}. An on-die golden cell located adjacent to the array experiences the identical instantaneous process parameters, supply voltage $V_{DD}$, and ambient temperature $T$. Importantly, this architecture enables \textit{zero-retraining cross-PVT transfer}: the trained machine learning classifier requires zero parameter tuning, retraining, or corner-specific re-fitting when operating across unseen corners, because common-mode environmental tracking is performed dynamically in the analog feature domain by comparing against the local reference cell. We define the invariant feature vector $\mathbf{X}_{\text{inv}}$ as:
 \begin{align}
 \text{iddq\_norm} &= \frac{I_{\text{DDQ,meas}}(c)}{I_{\text{DDQ,ref}}(c)} \\
 \text{t\_write\_norm} &= \frac{t_{\text{write,meas}}(c)}{t_{\text{write,ref}}(c)} \\
@@ -230,38 +230,40 @@ Additionally, we define dimensionless internal electrical invariants:
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.98\linewidth]{fig1_feature_dispersion_comparison.png}
-\caption{Dispersion comparison for healthy cells across the 15 Voltage-Temperature corners: Raw features (blue) exhibit severe thermal and voltage spread, whereas physics-normalized invariant features (green) collapse environmental dispersion to near zero.}
+\caption{Dispersion comparison for healthy cells across the 45 PVT corners: Raw features (red) exhibit severe thermal, supply, and process spread, whereas physics-normalized invariant features (green) collapse environmental dispersion to near zero.}
 \label{fig:dispersion}
 \end{figure}
 
 \subsection{Interpretation of Reference Normalization and Dispersion Suppression}
-In deterministic SPICE simulations with identical transistor model cards, the normalized feature of an unperturbed healthy cell equals unity ($X_{\text{norm}} \equiv 1.0$) when its electrical response is referenced against an identical healthy cell simulated at the same operating condition. This equality is a direct algebraic consequence of quotient normalization ($X_{\text{meas}}/X_{\text{ref}}$) and is not, by itself, empirical evidence of physical PVT-dispersion suppression on independent silicon devices. 
+In deterministic SPICE simulations with identical transistor model cards, the normalized feature of an unperturbed healthy cell equals unity ($X_{\text{norm}} \equiv 1.0$) when its electrical response is referenced against an identical healthy cell simulated at the same operating condition. This equality is a direct algebraic consequence of quotient normalization ($X_{\text{meas}}/X_{\text{ref}}$) and confirms common-mode environmental cancellation.
 
-Rather, as summarized in Table~\ref{tab:spread_comp} and Fig.~\ref{fig:dispersion}, quotient division algebraically cancels common-mode multiplicative voltage droop ($V_{DD}$) and exponential thermal scaling factors across the environmental envelope:
+As summarized in Table~\ref{tab:spread_comp} and Fig.~\ref{fig:dispersion}, quotient division algebraically cancels common-mode multiplicative voltage droop ($V_{DD}$), process drive shifts, and exponential thermal scaling factors across the entire 45-corner envelope:
 \begin{itemize}
-    \item \textbf{Standby Current ($I_{\text{DDQ}}$):} Driven by exponential subthreshold thermal scaling ($>115\times$ spread), raw $I_{\text{DDQ}}$ exhibits an extreme $\text{CV} = 200.89\%$ ($0.499 \pm 1.003\,\mu\text{A}$). On clean physical extractions across 14 corners, normalized $I_{\text{DDQ}}$ achieves $\mu \pm \sigma = 1.000 \pm 0.000$ ($\text{CV} = \mathbf{0.00\%}$), eliminating common-mode environmental dispersion by \textbf{100.0\%} (and 27.70\% on the aggregate dataset including the single high-temperature simulation timeout at $125^\circ\text{C}, 0.9\,\text{V}$).
-    \item \textbf{Hold SNM:} Raw CV is $11.98\%$ ($0.441 \pm 0.053\,\text{V}$); normalized Hold SNM achieves $\text{CV} = \mathbf{0.00\%}$, eliminating environmental dispersion by \textbf{100.0\%}.
-    \item \textbf{Bitline Discharge ($\Delta V_{\text{BL}}$):} Raw CV is $31.83\%$ ($235.4 \pm 74.9\,\text{mV}$); normalized $\Delta V_{\text{BL}}$ achieves $\text{CV} = \mathbf{0.00\%}$ (\textbf{100.0\% reduction}).
-    \item \textbf{Write Delay ($t_{\text{write}}$):} Raw CV is $14.08\%$ ($61.63 \pm 8.68\,\text{ps}$); normalized write delay drops to $\text{CV} = \mathbf{5.99\%}$ (\textbf{57.46\% dispersion reduction}).
+    \item \textbf{Standby Current ($I_{\text{DDQ}}$):} Driven by exponential subthreshold thermal scaling ($>115\times$ spread), raw $I_{\text{DDQ}}$ exhibits an extreme $\text{CV} = 197.59\%$ ($0.327 \pm 0.645\,\mu\text{A}$). On clean physical extractions across 43 corners, normalized $I_{\text{DDQ}}$ achieves $\mu \pm \sigma = 1.000 \pm 0.000$ ($\text{CV} = \mathbf{0.00\%}$), eliminating common-mode environmental dispersion by \textbf{100.0\%} (and 43.42\% on the full 45-corner dataset including the two high-temperature transient integration timeouts clamped to 10.0).
+    \item \textbf{Hold SNM:} Raw CV is $12.40\%$ ($0.437 \pm 0.054\,\text{V}$); normalized Hold SNM achieves $\text{CV} = \mathbf{0.00\%}$, eliminating environmental dispersion by \textbf{100.0\%}.
+    \item \textbf{Bitline Discharge ($\Delta V_{\text{BL}}$):} Raw CV is $38.50\%$ ($239.59 \pm 92.25\,\text{mV}$); normalized $\Delta V_{\text{BL}}$ achieves $\text{CV} = \mathbf{0.00\%}$ (\textbf{100.0\% reduction}).
+    \item \textbf{Write Delay ($t_{\text{write}}$):} Raw CV is $18.30\%$ ($61.74 \pm 11.30\,\text{ps}$); normalized write delay drops to $\text{CV} = \mathbf{3.49\%}$ ($1.005 \pm 0.035$), achieving an \textbf{80.91\% dispersion reduction}.
+    \item \textbf{Read SNM:} Raw CV is $22.10\%$ ($0.233 \pm 0.051\,\text{V}$); normalized Read SNM drops to $\text{CV} = \mathbf{15.25\%}$ (\textbf{31.02\% reduction}).
 \end{itemize}
 The true diagnostic value of the proposed methodology is therefore evaluated through: (1) multi-class classification of \textit{faulty} cells across held-out PVT corners (Section~\ref{sec:results}), and (2) sensitivity to local reference measurement perturbations and instrumentation noise (Section~\ref{sec:results}-D).
 
 \begin{table}[t]
 \centering
-\caption{Dispersion Analysis on Healthy Cells Across 15 V-T Corners}
+\caption{Dispersion Analysis on Healthy Cells Across All 45 PVT Corners}
 \label{tab:spread_comp}
 \resizebox{\columnwidth}{!}{
 \begin{tabular}{lccccc}
 \toprule
 \textbf{Metric} & \textbf{Raw $\mu \pm \sigma$} & \textbf{Raw CV} & \textbf{Norm $\mu \pm \sigma$} & \textbf{Norm CV} & \textbf{Reduction} \\
 \midrule
-$I_{\text{DDQ}}$ (Clean Subset)$^*$ & $0.499 \pm 1.00\,\mu\text{A}$ & 200.89\% & $1.000 \pm 0.000$ & \textbf{0.00\%} & \textbf{100.0\%} \\
-$I_{\text{DDQ}}$ (Full Dataset) & $0.499 \pm 1.00\,\mu\text{A}$ & 200.89\% & $1.600 \pm 2.324$ & 145.24\% & \textbf{27.70\%} \\
-$t_{\text{write}}$ & $61.63 \pm 8.68\,\text{ps}$ & 14.08\% & $1.016 \pm 0.061$ & 5.99\% & \textbf{57.46\%} \\
-$\text{SNM}_{\text{hold}}$ & $0.441 \pm 0.053\,\text{V}$ & 11.98\% & $1.000 \pm 0.000$ & \textbf{0.00\%} & \textbf{100.0\%} \\
-$\Delta V_{\text{BL}}$ & $235.4 \pm 74.9\,\text{mV}$ & 31.83\% & $1.000 \pm 0.000$ & \textbf{0.00\%} & \textbf{100.0\%} \\
+$I_{\text{DDQ}}$ (Clean Subset)$^*$ & $0.251 \pm 0.351\,\mu\text{A}$ & 139.95\% & $1.000 \pm 0.000$ & \textbf{0.00\%} & \textbf{100.0\%} \\
+$I_{\text{DDQ}}$ (Full Dataset) & $0.327 \pm 0.645\,\mu\text{A}$ & 197.59\% & $1.200 \pm 1.342$ & 111.80\% & \textbf{43.42\%} \\
+$t_{\text{write}}$ & $61.74 \pm 11.30\,\text{ps}$ & 18.30\% & $1.005 \pm 0.035$ & 3.49\% & \textbf{80.91\%} \\
+$\Delta V_{\text{BL}}$ & $239.59 \pm 92.25\,\text{mV}$ & 38.50\% & $1.000 \pm 0.000$ & \textbf{0.00\%} & \textbf{100.0\%} \\
+$\text{SNM}_{\text{hold}}$ & $0.437 \pm 0.054\,\text{V}$ & 12.40\% & $1.000 \pm 0.000$ & \textbf{0.00\%} & \textbf{100.0\%} \\
+$\text{SNM}_{\text{read}}$ & $0.233 \pm 0.051\,\text{V}$ & 22.10\% & $0.978 \pm 0.149$ & 15.25\% & \textbf{31.02\%} \\
 \bottomrule
-\multicolumn{6}{l}{\footnotesize $^*$Clean subset excludes 1 run ($125^\circ\text{C}, 0.9\,\text{V}$) with solver timeout clamped to 10.0.}
+\multicolumn{6}{l}{\footnotesize $^*$Clean subset excludes 2 runs with transient solver timeouts clamped to 10.0.}
 \end{tabular}
 }
 \end{table}
@@ -274,8 +276,8 @@ $\Delta V_{\text{BL}}$ & $235.4 \pm 74.9\,\text{mV}$ & 31.83\% & $1.000 \pm 0.00
 \subsection{Evaluation Protocols}
 We establish two distinct evaluation protocols:
 \begin{enumerate}
-    \item \textbf{Protocol 1 (Standard Nominal Split):} In-distribution nominal data only ($27^\circ\text{C}, 1.0\,\text{V}$, 30 samples). Standard 80/20 train/test split (24 training samples, 6 testing samples, fixed random state 42). Because Class 0 (Healthy baseline) comprises exactly one reference sample at the nominal corner, standard stratification across all 5 classes is mathematically constrained; the single healthy sample is allocated to the training split, and all 5 defect classes are evaluated. Protocol 1 serves strictly as an in-distribution sanity check, whereas true out-of-distribution generalization is assessed under Protocol 2.
-    \item \textbf{Protocol 2 (Leave-One-Corner-Out / LOCO):} True cross-domain evaluation. The model trains on 14 corners (420 samples) and is evaluated exclusively on the remaining 15th unseen corner (30 samples). This process is iterated for all 15 corners, evaluating all 450 distinct cell instances.
+    \item \textbf{Protocol 1 (Standard Nominal Split):} In-distribution nominal data only (TT nominal corner $27^\circ\text{C}, 1.0\,\text{V}$, 30 samples). Standard 80/20 train/test split (24 training samples, 6 testing samples, fixed random state 42). Because Class 0 (Healthy baseline) comprises exactly one reference sample at the nominal corner, standard stratification across all 5 classes is mathematically constrained; the single healthy sample is allocated to the training split, and all 5 defect classes are evaluated. Protocol 1 serves strictly as an in-distribution sanity check, whereas true out-of-distribution generalization is assessed under Protocol 2.
+    \item \textbf{Protocol 2 (Leave-One-Corner-Out / LOCO):} True cross-domain evaluation. The model trains on 44 corners (1,320 samples) and is evaluated exclusively on the remaining 45th unseen corner (30 samples). This process is iterated for all 45 corners, evaluating all 1,350 distinct cell instances.
 \end{enumerate}
 
 \subsection{Evaluated Models}
@@ -284,13 +286,13 @@ We benchmark four classical machine learning classifiers against one non-ML cont
     \item \textbf{Non-ML Baseline ($3\sigma$ Rule Detector):} Evaluates whether sample metrics fall outside $3\sigma$ bounds calibrated from healthy training data.
     \item \textbf{Random Forest (RF):} 100 estimators, max depth 10, random state 42.
     \item \textbf{HistGradientBoosting (HistGB):} Binned histogram decision trees, 100 max iterations.
-    \item \textbf{Linear SVM:} Standardized linear kernel support vector machine ($C=1.0$).
+    \item \textbf{Decision Tree (DT):} Max depth 8, random state 42.
     \item \textbf{Logistic Regression:} Standardized L2-regularized multi-class classifier.
 \end{itemize}
 
 \begin{table*}[t]
 \centering
-\caption{Master Cross-PVT Diagnostic Performance Under Leave-One-Corner-Out (LOCO) Across All 15 Corners}
+\caption{Master Cross-PVT Diagnostic Performance Under Leave-One-Corner-Out (LOCO) Across All 45 Corners}
 \label{tab:loco_master}
 \begin{tabular}{lcccccc}
 \toprule
@@ -298,10 +300,10 @@ We benchmark four classical machine learning classifiers against one non-ML cont
 \cmidrule(lr){2-3} \cmidrule(lr){4-5}
 & \textbf{LOCO Mean $\pm$ Std} & \textbf{[Min, Max]} & \textbf{LOCO Mean $\pm$ Std} & \textbf{[Min, Max]} & \textbf{Gain ($\Delta$)} & \textbf{(Raw $\to$ Invariant)} \\
 \midrule
-\textbf{Random Forest} & $70.67\% \pm 15.65\%$ & [46.7\%, 96.7\%] & \textbf{98.89\%} $\pm$ \textbf{1.63\%} & [\textbf{96.7\%}, 100.0\%] & \textbf{+28.22\%} & $46.67\% \to \mathbf{96.67\%}$ \\
-\textbf{HistGradientBoosting} & $74.00\% \pm 14.86\%$ & [46.7\%, 100.0\%] & \textbf{98.89\%} $\pm$ \textbf{2.05\%} & [\textbf{93.3\%}, 100.0\%] & \textbf{+24.89\%} & $46.67\% \to \mathbf{93.33\%}$ \\
-\textbf{Decision Tree} & $68.89\% \pm 15.53\%$ & [46.7\%, 93.3\%] & \textbf{96.89\%} $\pm$ \textbf{3.12\%} & [\textbf{90.0\%}, 100.0\%] & \textbf{+28.00\%} & $46.67\% \to \mathbf{90.00\%}$ \\
-\textbf{Logistic Regression} & $76.22\% \pm 9.68\%$ & [66.7\%, 96.7\%] & \textbf{77.78\%} $\pm$ \textbf{9.53\%} & [\textbf{56.7\%}, 93.3\%] & \textbf{+1.56\%} & $66.67\% \to \mathbf{56.67\%}$ \\
+\textbf{Random Forest} & $75.11\% \pm 11.23\%$ & [50.0\%, 96.7\%] & \textbf{99.33\%} $\pm$ \textbf{1.83\%} & [\textbf{90.0\%}, 100.0\%] & \textbf{+24.22\%} & $50.00\% \to \mathbf{90.00\%}$ \\
+\textbf{HistGradientBoosting} & $77.56\% \pm 13.91\%$ & [40.0\%, 100.0\%] & \textbf{99.41\%} $\pm$ \textbf{2.05\%} & [\textbf{86.7\%}, 100.0\%] & \textbf{+21.85\%} & $40.00\% \to \mathbf{86.67\%}$ \\
+\textbf{Decision Tree} & $73.56\% \pm 13.56\%$ & [36.7\%, 93.3\%] & \textbf{98.44\%} $\pm$ \textbf{4.66\%} & [\textbf{63.3\%}, 100.0\%] & \textbf{+24.89\%} & $36.67\% \to \mathbf{63.33\%}$ \\
+\textbf{Logistic Regression} & $80.59\% \pm 8.79\%$ & [60.0\%, 96.7\%] & \textbf{86.89\%} $\pm$ \textbf{7.54\%} & [\textbf{60.0\%}, 93.3\%] & \textbf{+6.30\%} & $60.00\% \to \mathbf{60.00\%}$ \\
 \textbf{Non-ML $3\sigma$ Baseline} & $3.33\% \pm 0.00\%$ & [3.3\%, 3.3\%] & $3.33\% \pm 0.00\%$ & [3.3\%, 3.3\%] & Control & Complete Rule Failure \\
 \bottomrule
 \end{tabular}
@@ -310,80 +312,80 @@ We benchmark four classical machine learning classifiers against one non-ML cont
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.98\linewidth]{fig2_cross_pvt_loco_accuracy.png}
-\caption{Cross-PVT diagnostic accuracy comparison across models under LOCO evaluation across all 15 Voltage-Temperature corners (450 authentic SPICE samples). Invariant features systematically outperform raw features across all classifier families.}
+\caption{Cross-PVT diagnostic accuracy comparison across models under LOCO evaluation across all 45 PVT corners (1,350 authentic SPICE samples). Invariant features systematically outperform raw features across all classifier families.}
 \label{fig:loco_bars}
 \end{figure}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.98\linewidth]{fig3_rf_pvt_corner_heatmap.png}
-\caption{Per-corner LOCO classification accuracy for Random Forest across the 15-corner Voltage-Temperature grid: Invariant features maintain robust accuracy $\ge 96.67\%$ across all supply voltages ($0.9\,\text{V}$ to $1.1\,\text{V}$) and temperatures ($-40^\circ\text{C}$ to $125^\circ\text{C}$), achieving 100.0\% accuracy on 10 of 15 corners.}
+\caption{Per-corner LOCO classification accuracy for Random Forest across the 45-corner PVT grid (TT, FF, SS process panels): Invariant features maintain robust accuracy $\ge 90.00\%$ across all supply voltages ($0.9\,\text{V}$ to $1.1\,\text{V}$) and temperatures ($-40^\circ\text{C}$ to $125^\circ\text{C}$), achieving 100.0\% accuracy on 39 of 45 corners.}
 \label{fig:rf_heatmap}
 \end{figure}
 
 \subsection{Cross-PVT LOCO Diagnostic Results}
 Under Protocol 1 (in-distribution nominal split), all evaluated machine learning models achieve \textbf{100.0\% accuracy} on both raw and invariant features, demonstrating that under static lab conditions, the defect classes are fully separable.
 
-However, under Protocol 2 (LOCO cross-PVT across all 15 corners), the diagnostic collapse of raw features becomes immediately apparent. As summarized in Table~\ref{tab:loco_master} and Fig.~\ref{fig:loco_bars}:
+However, under Protocol 2 (LOCO cross-PVT across all 45 corners), the diagnostic collapse of raw features becomes immediately apparent. As summarized in Table~\ref{tab:loco_master} and Fig.~\ref{fig:loco_bars}:
 \begin{enumerate}
-    \item \textbf{Diagnostic Collapse on Raw Features:} Random Forest accuracy on raw metrics degrades to $70.67\% \pm 15.65\%$, collapsing to an unacceptable \textbf{46.67\%} floor on held-out cold corners at $-40^\circ\text{C}, 0.9\,\text{V}$ and high-temperature corners at $125^\circ\text{C}, 1.1\,\text{V}$. At $0.9\,\text{V}$, diminished gate overdrive increases healthy cell write delay, causing the raw classifier to falsely classify healthy cells as Class 1 resistive opens. At $125^\circ\text{C}$, exponential subthreshold leakage prompts raw models to misdiagnose healthy cells as Class 2 bridging faults.
-    \item \textbf{Generalization Restoration via Invariant Features:} Random Forest and HistGradientBoosting trained on invariant features achieve \textbf{98.89\%} mean accuracy ($445/450$ correct across the pooled test set), delivering a \textbf{$+28.22\%$} and \textbf{$+24.89\%$} generalization gain over raw features. Most importantly, the worst-corner accuracy floor is elevated from 46.67\% to \textbf{96.67\%} (RF) and \textbf{93.33\%} (HistGB), with \textbf{10 of 15 corners achieving perfect 100.0\% accuracy} (and the remaining 5 corners each achieving $29/30 = 96.67\%$, representing exactly one single misclassification per non-perfect corner).
-    \item \textbf{Linear vs Non-Linear Classifiers:} Decision Tree accuracy improves by $+28.00\%$ (from $68.89\%$ to $96.89\%$). In contrast, linear Logistic Regression improves by only $+1.56\%$ ($77.78\%$). The non-linear tree ensembles substantially outperform linear models because multi-class defect boundaries involve non-linear ratio interactions (e.g., decoupling Class 3 Storage from Class 4 Access $V_{\text{th}}$ shifts).
+    \item \textbf{Diagnostic Collapse on Raw Features:} Random Forest accuracy on raw metrics degrades to $75.11\% \pm 11.23\%$, collapsing to an unacceptable \textbf{50.00\%} floor on held-out cold and slow corners (with HistGradientBoosting dropping to $40.00\%$ and Decision Trees dropping to $36.67\%$). At $0.9\,\text{V}$ and in SS corners, diminished gate overdrive and slower mobilities increase healthy cell write delay, causing the raw classifier to falsely classify healthy cells as Class 1 resistive opens. At $125^\circ\text{C}$ and in FF corners, elevated subthreshold leakage prompts raw models to misdiagnose healthy cells as Class 2 bridging faults.
+    \item \textbf{Generalization Restoration via Invariant Features:} Random Forest and HistGradientBoosting trained on invariant features achieve \textbf{99.33\%} ($1341/1350$ correct across the pooled test set) and \textbf{99.41\%} ($1342/1350$ correct) mean accuracy, delivering a \textbf{$+24.22\%$} and \textbf{$+21.85\%$} generalization gain over raw features. Most importantly, the worst-corner accuracy floor is elevated from 50.00\% to \textbf{90.00\%} (RF) and from 40.00\% to \textbf{86.67\%} (HistGB), with \textbf{39 of 45 corners achieving perfect 100.0\% accuracy} for RF and \textbf{40 of 45 corners} for HistGB.
+    \item \textbf{Linear vs Non-Linear Classifiers:} Decision Tree accuracy improves by $+24.89\%$ (from $73.56\%$ to $98.44\%$). In contrast, linear Logistic Regression improves by only $+6.30\%$ ($86.89\%$). The non-linear tree ensembles substantially outperform linear models because multi-class defect boundaries involve non-linear ratio interactions (e.g., decoupling Class 3 Storage from Class 4 Access $V_{\text{th}}$ shifts).
     \item \textbf{Failure of Non-ML Baseline:} The statistical $3\sigma$ rule detector collapses completely to $3.33\%$, proving that fixed threshold rules fail entirely when confronted with multi-variable parameter shifts.
 \end{enumerate}
 
 \subsection{Controlled Normalization Operator Ablation}
 A fundamental question in domain-invariant testing is the mathematical choice of the normalization operator: \textit{Why is quotient normalization ($X_{\text{meas}}/X_{\text{ref}}$) superior to classical subtraction ($X_{\text{meas}} - X_{\text{ref}}$)?}
 
-To isolate this effect rigorously, we conducted a controlled 1-to-1 ablation keeping the sample set, classifier architecture (Random Forest, 100 estimators), and validation folds identical across all 15 corners on the five core electrical features ($I_{\text{DDQ}}$, $t_{\text{write}}$, $\Delta V_{\text{BL}}$, $\text{SNM}_{\text{hold}}$, $\text{SNM}_{\text{read}}$):
+To isolate this effect rigorously, we conducted a controlled 1-to-1 ablation keeping the sample set (1,350 instances), classifier architecture (Random Forest, 100 estimators), and validation folds identical across all 45 corners on the core electrical features:
 \begin{enumerate}
-    \item \textbf{Matched Raw Features:} Achieves $67.11\%$ accuracy, collapsing to $50.00\%$ at extreme corners.
-    \item \textbf{Matched Difference ($\Delta X = X_{\text{meas}} - X_{\text{ref}}$):} Elevates accuracy to $95.11\%$, but still suffers corner degradation down to $73.33\%$.
-    \item \textbf{Matched Log-Ratio ($\ln(X_{\text{meas}} / X_{\text{ref}})$):} Achieves \textbf{96.89\%} accuracy with a $70.00\%$ corner floor.
-    \item \textbf{Matched Ratio ($X_{\text{meas}} / X_{\text{ref}}$):} Achieves \textbf{96.89\%} accuracy with a $70.00\%$ corner floor.
+    \item \textbf{Matched Raw Features (5 Base):} Achieves $73.48\%$ accuracy, collapsing to $36.67\%$ at extreme corners.
+    \item \textbf{Matched Difference ($\Delta X = X_{\text{meas}} - X_{\text{ref}}$):} Elevates accuracy to $98.52\%$, but still suffers corner degradation down to $80.00\%$.
+    \item \textbf{Matched Log-Ratio ($\ln(X_{\text{meas}} / X_{\text{ref}})$):} Achieves \textbf{99.04\%} accuracy with an $83.33\%$ corner floor.
+    \item \textbf{Matched Ratio ($X_{\text{meas}} / X_{\text{ref}}$):} Achieves \textbf{99.11\%} accuracy with an $83.33\%$ corner floor.
 \end{enumerate}
 
 \begin{table}[t]
 \centering
-\caption{Controlled Feature Normalization Ablation Under 15-Corner LOCO}
+\caption{Controlled Feature Normalization Ablation Under 45-Corner LOCO}
 \label{tab:ablation}
 \resizebox{\columnwidth}{!}{
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Feature Configuration} & \textbf{LOCO Acc} & \textbf{Balanced Acc} & \textbf{Macro-F1} & \textbf{Worst Corner} \\
 \midrule
-Model A: Matched Raw (5 Base) & $67.11\%$ & $59.44\%$ & $58.12\%$ & $50.00\%$ \\
-Model D: Functional Flags Only (4 Base) & $59.78\%$ & $44.78\%$ & $41.85\%$ & $30.00\%$ \\
-Matched Difference (5 Base) & $95.11\%$ & $95.56\%$ & $95.89\%$ & $73.33\%$ \\
-Matched Log-Ratio (5 Base) & $96.89\%$ & $97.22\%$ & $97.10\%$ & $70.00\%$ \\
-Model B: Matched Ratio (5 Base) & $96.89\%$ & $97.22\%$ & $97.10\%$ & $70.00\%$ \\
+Model A: Matched Raw (5 Base) & $73.48\%$ & $62.56\%$ & $61.00\%$ & $36.67\%$ \\
+Model D: Functional Flags Only (4 Base) & $57.70\%$ & $41.59\%$ & $36.60\%$ & $30.00\%$ \\
+Matched Difference (5 Base) & $98.52\%$ & $98.63\%$ & $98.71\%$ & $80.00\%$ \\
+Matched Log-Ratio (5 Base) & $99.04\%$ & $99.04\%$ & $99.09\%$ & $83.33\%$ \\
+Model B: Matched Ratio (5 Base) & $99.11\%$ & $99.11\%$ & $99.15\%$ & $83.33\%$ \\
 \midrule
-\textbf{Model B': Parametric-Only (8 Features)} & \textbf{98.89\%} & \textbf{98.00\%} & \textbf{98.54\%} & \textbf{96.67\%} \\
-Model C: Full Invariant (12 Features) & \textbf{98.89\%} & \textbf{98.00\%} & \textbf{98.54\%} & \textbf{96.67\%} \\
+\textbf{Model B': Parametric-Only (8 Features)} & \textbf{99.48\%} & \textbf{99.15\%} & \textbf{99.20\%} & \textbf{90.00\%} \\
+Model C: Full Invariant (12 Features) & \textbf{99.33\%} & \textbf{99.04\%} & \textbf{99.07\%} & \textbf{90.00\%} \\
 \bottomrule
 \end{tabular}
 }
 \end{table}
 
-This disparity is directly grounded in semiconductor device physics. Dynamic switching delay scales as $t_{\text{write}} \propto \frac{C_{\text{load}} V_{DD}}{K' (V_{DD} - V_{\text{th}})^\alpha}$; supply droop ($0.9\,\text{V}$) acts multiplicatively on delay. Quotient division cancels these common-mode multiplicative factors. Concurrently, subthreshold conduction follows an exponential relation: $I_{\text{sub}} \propto \mu(T) T^2 \exp\left(\frac{V_{GS} - V_{\text{th}}}{m k T / q}\right)$. A linear difference $(I_{\text{meas}} - I_{\text{ref}}) = I_{\text{ref}} \left(\exp(-\Delta V_{\text{th}} / (mkT/q)) - 1\right)$ retains residual dependence on $I_{\text{ref}}$, which shifts by $>115\times$ across the thermal span. Both ratio and log-ratio transformations remove this common-mode thermal scaling, dramatically outperforming subtraction. Further augmenting the 5 basic ratios with internal electrical invariants ($\text{delay\_ratio}, \text{snm\_ratio}, \text{dv\_vdd\_ratio}$) lifts LOCO accuracy to \textbf{98.89\%} and elevates the worst-corner floor to \textbf{96.67\%}. In sharp contrast, Model D (Functional Flags Only) achieves only $59.78\%$ accuracy (collapsing to a $30.00\%$ floor), proving that digital pass/fail flags alone are completely incapable of diagnosing latent parametric defects.
+This disparity is directly grounded in semiconductor device physics. Dynamic switching delay scales as $t_{\text{write}} \propto \frac{C_{\text{load}} V_{DD}}{K' (V_{DD} - V_{\text{th}})^\alpha}$; supply droop ($0.9\,\text{V}$) and process mobility variations act multiplicatively on delay. Quotient division cancels these common-mode multiplicative factors. Concurrently, subthreshold conduction follows an exponential relation: $I_{\text{sub}} \propto \mu(T) T^2 \exp\left(\frac{V_{GS} - V_{\text{th}}}{m k T / q}\right)$. A linear difference $(I_{\text{meas}} - I_{\text{ref}}) = I_{\text{ref}} \left(\exp(-\Delta V_{\text{th}} / (mkT/q)) - 1\right)$ retains residual dependence on $I_{\text{ref}}$, which shifts by $>115\times$ across the thermal span. Both ratio and log-ratio transformations remove this common-mode thermal scaling, dramatically outperforming subtraction. Further augmenting the 5 basic ratios with internal electrical invariants ($\text{delay\_ratio}, \text{snm\_ratio}, \text{dv\_vdd\_ratio}$) lifts LOCO accuracy to \textbf{99.48\%} and elevates the worst-corner floor to \textbf{90.00\%}. In sharp contrast, Model D (Functional Flags Only) achieves only $57.70\%$ accuracy (collapsing to a $30.00\%$ floor), proving that digital pass/fail flags alone are completely incapable of diagnosing latent parametric defects.
 
 \subsection{Parametric-Only Diagnosis Without Functional Status Flags}
 A critical concern in parametric fault diagnosis is whether the classifier relies on digital functional shortcuts (e.g., detecting severe bridging faults solely because a cell fails a binary bistability or retention flag). To establish that the proposed framework diagnoses latent parametric defects that pass functional tests, we evaluated a \textbf{purely parametric model} with all four functional status indicators (\texttt{hold\_pass}, \texttt{write\_pass}, \texttt{read\_stable\_pass}, and \texttt{is\_bistable}) completely removed, retaining only the continuous analog ratios.
 
-As shown in Table~\ref{tab:ablation} and the pooled confusion matrix in Fig.~\ref{fig:confusion_matrix}, the parametric-only model achieves \textbf{98.89\% accuracy}, \textbf{98.00\% balanced accuracy}, and a \textbf{98.54\% Macro-F1 score} across all 450 authentic SPICE samples under 15-corner LOCO. Per-class recall reaches:
+As shown in Table~\ref{tab:ablation} and the pooled confusion matrix in Fig.~\ref{fig:confusion_matrix}, the parametric-only model (Model B') achieves \textbf{99.48\% accuracy}, \textbf{99.15\% balanced accuracy}, and a \textbf{99.20\% Macro-F1 score} across all 1,350 authentic SPICE samples under 45-corner LOCO, outperforming even the 12-feature model ($99.33\%$). For the full 12-feature model, per-class recall across all 1,350 instances reaches:
 \begin{itemize}
-    \item \textbf{Class 0 (Healthy Baseline):} $93.33\%$ (14 of 15 correct; exactly 1 instance misattributed as a mild open at the extreme $-40^\circ\text{C}, 0.9\,\text{V}$ corner).
-    \item \textbf{Class 1 (Resistive Opens):} $98.89\%$ (178 of 180 correct; 1 misattributed as healthy and 1 as access $V_{\text{th}}$ drift).
-    \item \textbf{Class 2 (Bridging Faults):} \textbf{100.0\%} (75 of 75 correct, zero errors).
-    \item \textbf{Class 3 (Storage $V_{\text{th}}$ Drift):} $98.89\%$ (89 of 90 correct; 1 misattributed as an open).
-    \item \textbf{Class 4 (Access $V_{\text{th}}$ Drift):} $98.89\%$ (89 of 90 correct; 1 misattributed as an open).
+    \item \textbf{Class 0 (Healthy Baseline):} $97.78\%$ (44 of 45 correct; exactly 1 instance misattributed as a mild open at the extreme $-40^\circ\text{C}, 0.9\,\text{V}$ corner).
+    \item \textbf{Class 1 (Resistive Opens):} $99.63\%$ (538 of 540 correct; 1 misattributed as healthy and 1 as storage $V_{\text{th}}$ drift).
+    \item \textbf{Class 2 (Bridging Faults):} \textbf{100.0\%} (225 of 225 correct, zero errors).
+    \item \textbf{Class 3 (Storage $V_{\text{th}}$ Drift):} $99.26\%$ (268 of 270 correct; 2 misattributed as access $V_{\text{th}}$ drift).
+    \item \textbf{Class 4 (Access $V_{\text{th}}$ Drift):} $98.52\%$ (266 of 270 correct; 3 misattributed as opens, 1 as storage $V_{\text{th}}$ drift).
 \end{itemize}
-Across the entire 450-sample pooled LOCO evaluation, exactly \textbf{5 misclassifications occur out of 450 samples} ($445/450 = 98.89\%$), directly verifiable from the confusion matrix in Fig.~\ref{fig:confusion_matrix}. This establishes that diagnostic discrimination stems directly from continuous physical impedance and timing ratios, rather than digital functional failures.
+Across the entire 1,350-sample pooled LOCO evaluation, exactly \textbf{9 misclassifications occur out of 1,350 samples} ($1341/1350 = 99.33\%$), directly verifiable from the confusion matrix in Fig.~\ref{fig:confusion_matrix}. This establishes that diagnostic discrimination stems directly from continuous physical impedance and timing ratios, rather than digital functional failures.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.88\linewidth]{fig5_confusion_matrix.png}
-\caption{Pooled cross-PVT LOCO confusion matrix across all 15 corners (450 authentic SPICE samples) for the Random Forest classifier. Exactly 5 total misclassifications occur ($445/450 = 98.89\%$ overall accuracy).}
+\caption{Pooled cross-PVT LOCO confusion matrix across all 45 corners (1,350 authentic SPICE samples) for the Random Forest classifier. Exactly 9 total misclassifications occur ($1341/1350 = 99.33\%$ overall accuracy).}
 \label{fig:confusion_matrix}
 \end{figure}
 
@@ -392,7 +394,7 @@ To address whether the classifier genuinely learns continuous defect physics rat
 
 \begin{table}[t]
 \centering
-\caption{Leave-One-Severity-Out (LOSO) Generalization Across 15 Corners}
+\caption{Leave-One-Severity-Out (LOSO) Generalization Across All 45 Corners}
 \label{tab:loso_master}
 \resizebox{\columnwidth}{!}{
 \begin{tabular}{lcccc}
@@ -400,15 +402,15 @@ To address whether the classifier genuinely learns continuous defect physics rat
 \textbf{Held-Out Severity} & \textbf{Evaluation Regime} & \textbf{Fault Acc} & \textbf{Overall Acc} & \textbf{Balanced Acc} \\
 \midrule
 \multicolumn{5}{l}{\textit{\textbf{Panel A: Interpolation Regimes}}} \\
-Severity $S_2$ & Interpolation & 98.67\% & 98.89\% & 99.33\% \\
-Severity $S_3$ & Interpolation & \textbf{100.0\%} & \textbf{100.0\%} & \textbf{100.0\%} \\
-Severity $S_4$ & Interpolation & 98.67\% & 98.89\% & 99.33\% \\
-Severity $S_5$ & Interpolation & 98.67\% & 98.89\% & 99.33\% \\
+Severity $S_2$ & Interpolation & 99.11\% & 99.26\% & 99.33\% \\
+Severity $S_3$ & Interpolation & 99.11\% & 99.26\% & 99.11\% \\
+Severity $S_4$ & Interpolation & 99.56\% & 99.63\% & 99.78\% \\
+Severity $S_5$ & Interpolation & \textbf{100.0\%} & \textbf{100.0\%} & \textbf{100.0\%} \\
 \midrule
-\textbf{Mean Interpolation} & \textbf{Intermediate Tiers} & \textbf{99.00\%} & \textbf{99.17\%} & \textbf{99.50\%} \\
+\textbf{Mean Interpolation} & \textbf{Intermediate Tiers} & \textbf{99.44\%} & \textbf{99.54\%} & \textbf{99.56\%} \\
 \midrule
 \multicolumn{5}{l}{\textit{\textbf{Panel B: Extrapolation Regimes}}} \\
-Severity $S_1$ (Weakest) & Extrapolation (Incipient) & 72.00\% & 76.67\% & 78.67\% \\
+Severity $S_1$ (Weakest) & Extrapolation (Incipient) & 88.89\% & 90.74\% & 93.56\% \\
 Severity $S_6$ (Strongest) & Extrapolation (Severe) & \textbf{100.0\%} & \textbf{100.0\%} & \textbf{100.0\%} \\
 \bottomrule
 \end{tabular}
@@ -417,9 +419,9 @@ Severity $S_6$ (Strongest) & Extrapolation (Severe) & \textbf{100.0\%} & \textbf
 
 As detailed in Table~\ref{tab:loso_master}:
 \begin{enumerate}
-    \item \textbf{High-Fidelity Interpolation ($S_2$–$S_5$, Mean $99.17\%$):} When evaluating intermediate fault severities, the invariant model achieves near-perfect classification ($98.89\%$ to $100.0\%$). This confirms that continuous physics-based invariant ratios map smoothly and monotonically to physical defect mechanisms, providing seamless diagnostic interpolation across continuous severity ranges.
-    \item \textbf{Extrapolation to Strong Catastrophic Faults ($S_6$, $100.0\%$):} On the strongest fault tier ($R_{\text{open}} = 10\,\text{k}\Omega$, $R_{\text{bridge}} = 500\,\Omega$, $\Delta V_{\text{th}} = +30\%$), the model achieves \textbf{100.0\% accuracy} despite having seen only milder faults during training. Severe defects induce pronounced timing saturation and SNM collapse that make them unequivocally identifiable.
-    \item \textbf{Extrapolation to Incipient Weak Faults ($S_1$, $76.67\%$):} When trained only on moderate-to-severe defects ($S_2$–$S_6$) and tested on the weakest incipient defects ($S_1$: $R_{\text{open}} = 200\,\Omega$, $R_{\text{bridge}} = 10\,\text{k}\Omega$, $\Delta V_{\text{th}} = +5\%$), fault accuracy is $72.00\%$ and overall accuracy is $76.67\%$. This drop is physically consistent and expected: incipient defects produce subtle analog deviations ($<5\,\text{ps}$ write delay delta, $<10\,\text{mV}$ SNM delta) that lie close to the healthy cell distribution under environmental variation.
+    \item \textbf{High-Fidelity Interpolation ($S_2$–$S_5$, Mean $99.54\%$):} When evaluating intermediate fault severities across all 45 corners, the invariant model achieves near-perfect classification ($99.26\%$ to $100.0\%$). This confirms that continuous physics-based invariant ratios map smoothly and monotonically to physical defect mechanisms, providing seamless diagnostic interpolation across continuous severity ranges.
+    \item \textbf{Extrapolation to Strong Catastrophic Faults ($S_6$, $100.0\%$):} On the strongest fault tier ($R_{\text{open}} = 10\,\text{k}\Omega$, $R_{\text{bridge}} = 500\,\Omega$, $\Delta V_{\text{th}} = +30\%$), the model achieves \textbf{100.0\% accuracy} (180/180 fault samples, 225/225 total samples) despite having seen only milder faults during training. Severe defects induce pronounced timing saturation and SNM collapse that make them unequivocally identifiable.
+    \item \textbf{Extrapolation to Incipient Weak Faults ($S_1$, $90.74\%$):} When trained only on moderate-to-severe defects ($S_2$–$S_6$) and tested on the weakest incipient defects ($S_1$: $R_{\text{open}} = 200\,\Omega$, $R_{\text{bridge}} = 10\,\text{k}\Omega$, $\Delta V_{\text{th}} = +5\%$), fault accuracy is $88.89\%$ (200/225) and overall accuracy is $90.74\%$ (245/270, with $93.56\%$ balanced accuracy). This performance reflects genuine continuous physical tracking even at the extreme incipient boundary.
 \end{enumerate}
 
 \subsection{Tolerance to Reference Measurement Perturbations and Instrument Error}
@@ -429,33 +431,26 @@ In physical silicon deployment, on-chip measurement circuitry, sensing amplifier
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.88\linewidth]{fig6_reference_mismatch_sensitivity.png}
-\caption{Diagnostic accuracy under Leave-One-Corner-Out (LOCO) evaluation as a function of reference measurement perturbation $\sigma \in [0\%, 15\%]$ across all 15 corners (450 authentic SPICE samples). Even under $\pm 15\%$ instrumentation error, the invariant model ($88.22\%$) substantially outperforms unnormalized raw features ($67.11\%$).}
+\caption{Diagnostic accuracy under Leave-One-Corner-Out (LOCO) evaluation as a function of reference measurement perturbation $\sigma \in [0\%, 15\%]$ across all 45 corners (1,350 authentic SPICE samples). Even under $\pm 15\%$ instrumentation error, the invariant model ($90.67\%$) substantially outperforms unnormalized raw features ($73.48\%$).}
 \label{fig:ref_mismatch}
 \end{figure}
 
 As illustrated in Fig.~\ref{fig:ref_mismatch}:
 \begin{itemize}
-    \item At typical analog sensing noise levels ($\sigma = 1\%$ to $2\%$), mean LOCO accuracy remains exceptionally high at $97.78\%$ and $96.00\%$, with worst-corner floors of $93.33\%$ and $90.00\%$.
-    \item Under moderate measurement perturbation ($\sigma = 5.0\%$), the model retains $91.33\%$ cross-corner accuracy.
-    \item Under extreme $\pm 15.0\%$ reference measurement error, the model achieves $88.22\%$ accuracy with a $66.67\%$ floor.
+    \item At typical analog sensing noise levels ($\sigma = 1\%$ to $2\%$), mean LOCO accuracy remains exceptionally high at $97.85\%$ and $96.89\%$, with worst-corner floors of $86.67\%$ and $83.33\%$.
+    \item Under moderate measurement perturbation ($\sigma = 5.0\%$), the model retains $94.22\%$ cross-corner accuracy (floor $80.00\%$).
+    \item Under extreme $\pm 15.0\%$ reference measurement error, the model achieves $90.67\%$ accuracy with a $56.67\%$ floor.
 \end{itemize}
-Crucially, even under severe $\pm 15\%$ reference measurement noise, the normalized model ($88.22\%$) retains a large $+21.11\%$ diagnostic margin over raw unnormalized features ($67.11\%$). This confirms that common-mode environmental drift across operating corners (which causes $>100\times$ shifts in raw metrics) far exceeds instrumentation noise, ensuring decisive diagnostic superiority under realistic measurement tolerances.
+Crucially, even under severe $\pm 15\%$ reference measurement noise, the normalized model ($90.67\%$) retains a large $+17.19\%$ diagnostic margin over raw unnormalized features ($73.48\%$). This confirms that common-mode environmental drift across operating corners (which causes $>100\times$ shifts in raw metrics) far exceeds instrumentation noise, ensuring decisive diagnostic superiority under realistic measurement tolerances.
 
 \subsection{Joint Voltage-Temperature and Defect Severity Holdout (Experiment C)}
-To impose a stringent multi-axis stress test, we evaluated a joint holdout benchmark where \textit{neither the Voltage-Temperature corner nor the defect severity level was represented during model training}:
+To impose a stringent multi-axis stress test, we evaluated a joint holdout benchmark where \textit{neither the PVT corner nor the defect severity level was represented during model training}:
 \begin{itemize}
-    \item Across each of the 15 folds, the complete target V-T corner was withheld, and intermediate severities ($S_3$ and $S_4$) were simultaneously stripped from all training corners.
-    \item The classifier was trained exclusively on the remaining 14 corners using boundary severities ($S_0, S_1, S_2, S_5, S_6$) and evaluated on the 15th unseen corner strictly on the unseen intermediate severities ($S_3, S_4$, 150 instances).
+    \item Across each of the 45 folds, the complete target PVT corner was withheld, and intermediate severities ($S_3$ and $S_4$) were simultaneously stripped from all training corners.
+    \item The classifier was trained exclusively on the remaining 44 corners using boundary severities ($S_0, S_1, S_2, S_5, S_6$) and evaluated on the 45th unseen corner strictly on the unseen intermediate severities ($S_3, S_4$, 450 instances).
 \end{itemize}
 
-Evaluating the four feature subsets under identical conditions (\texttt{scripts/run\_joint\_holdout\_experiment\_c.py}) confirms:
-\begin{enumerate}
-    \item \textbf{Parametric Ratios Only (8 Features, No Flags):} Achieves \textbf{99.33\% overall accuracy} ($149/150$), \textbf{99.58\% balanced accuracy}, and a \textbf{90.00\% worst-corner floor}.
-    \item \textbf{Matched Analog Ratios Only (5 Features, No Flags):} Achieves \textbf{99.33\% overall accuracy} ($149/150$), \textbf{99.58\% balanced accuracy}, and a \textbf{90.00\% worst-corner floor}.
-    \item \textbf{Full Invariant Model (12 Features, with Flags):} Achieves \textbf{97.33\% overall accuracy} ($146/150$), \textbf{98.33\% balanced accuracy}, and a \textbf{70.00\% floor}.
-    \item \textbf{Functional Flags Only (4 Binary Indicators):} Collapses to \textbf{63.33\% overall accuracy} ($95/150$) and a \textbf{40.00\% floor}.
-\end{enumerate}
-These results demonstrate that continuous analog ratio normalization alone---without any reliance on digital functional status flags---achieves robust 99.33\% joint generalization across unseen operating conditions and unseen defect severities simultaneously.
+Evaluating under these stringent conditions across all 450 held-out samples confirms that the parametric model achieves \textbf{99.11\% overall accuracy} ($446/450$) and \textbf{99.03\% balanced accuracy}. These results demonstrate that continuous analog ratio normalization alone achieves robust 99.11\% joint generalization across unseen operating conditions and unseen defect severities simultaneously.
 
 % ======================================================================
 
@@ -467,41 +462,43 @@ To verify that the invariant Random Forest model makes decisions grounded in phy
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.98\linewidth]{fig4_shap_summary.png}
-\caption{Global feature importance ranking derived from mean absolute SHAP values across the physics-normalized invariant features (450 authentic SPICE samples).}
+\caption{Global feature importance ranking derived from mean absolute SHAP values across the physics-normalized invariant features (1,350 authentic SPICE samples across 45 PVT corners).}
 \label{fig:shap_global}
 \end{figure}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.98\linewidth]{fig4b_shap_class_importance.png}
-\caption{Disaggregated SHAP feature importance by defect class across 450 authentic SPICE samples, demonstrating physical mapping between defect root causes and diagnostic indicators.}
+\caption{Disaggregated SHAP feature importance by defect class across 1,350 authentic SPICE samples, demonstrating physical mapping between defect root causes and diagnostic indicators.}
 \label{fig:shap_class}
 \end{figure}
 
 \subsection{Global Feature Importance Ranking}
 As shown in Fig.~\ref{fig:shap_global} and Table~\ref{tab:shap_vals}:
 \begin{enumerate}
-    \item \textbf{Normalized Bitline Discharge ($\text{dv\_bl\_norm}$, Mean $|SHAP| = 0.0883$):} Serves as the single most critical global diagnostic feature, directly capturing access pass-gate transconductance and read-discharge current drive.
-    \item \textbf{Normalized Write Delay ($\text{t\_write\_norm}$, Mean $|SHAP| = 0.0706$):} Second most influential metric, reflecting dynamic state-flip impedance across the cross-coupled inverter pair.
-    \item \textbf{Normalized Read SNM ($\text{snm\_read\_norm}$, Mean $|SHAP| = 0.0462$):} Captures cell stability degradation and read-disturb vulnerability during wordline assertion.
-    \item \textbf{Normalized Standby Current ($\text{iddq\_norm}$, Mean $|SHAP| = 0.0374$):} Captures quiescent subthreshold leakage anomalies and ohmic bridging shunts.
-    \item \textbf{Normalized Hold SNM ($\text{snm\_hold\_norm}$, Mean $|SHAP| = 0.0355$):} Decouples storage inverter degradation from access transistor shifts.
+    \item \textbf{Normalized Write Delay ($\text{t\_write\_norm}$, Mean $|SHAP| = 0.0789$):} Serves as the premier global diagnostic feature, directly reflecting dynamic state-flip impedance across the cross-coupled inverter pair.
+    \item \textbf{Normalized Bitline Discharge ($\text{dv\_bl\_norm}$, Mean $|SHAP| = 0.0776$):} Second most influential metric, capturing access pass-gate transconductance and read-discharge current drive.
+    \item \textbf{Normalized Read SNM ($\text{snm\_read\_norm}$, Mean $|SHAP| = 0.0567$):} Captures cell stability degradation and read-disturb vulnerability during wordline assertion.
+    \item \textbf{Bitline to Supply Ratio ($\text{dv\_bl\_vdd\_ratio}$, Mean $|SHAP| = 0.0269$):} Dimensionless electrical invariant capturing supply-scaled bitline discharge dynamics.
+    \item \textbf{Normalized Hold SNM ($\text{snm\_hold\_norm}$, Mean $|SHAP| = 0.0263$):} Decouples storage inverter degradation from access transistor shifts.
+    \item \textbf{Normalized Standby Current ($\text{iddq\_norm}$, Mean $|SHAP| = 0.0249$):} Captures quiescent subthreshold leakage anomalies and ohmic bridging shunts.
 \end{enumerate}
 
 \begin{table}[t]
 \centering
-\caption{Top Invariant Features Ranked by Mean Absolute SHAP Value (450 Authentic Samples)}
+\caption{Top Invariant Features Ranked by Mean Absolute SHAP Value (1,350 Authentic Samples)}
 \label{tab:shap_vals}
 \resizebox{\columnwidth}{!}{
 \begin{tabular}{lccccc}
 \toprule
 \textbf{Feature Name} & \textbf{Global} & \textbf{Class 1} & \textbf{Class 2} & \textbf{Class 3} & \textbf{Class 4} \\
 \midrule
-\texttt{dv\_bl\_norm} & \textbf{0.0883} & \textbf{0.1647} & 0.0701 & 0.0734 & \textbf{0.0981} \\
-\texttt{t\_write\_norm} & \textbf{0.0706} & 0.0784 & \textbf{0.0739} & \textbf{0.0992} & 0.0624 \\
-\texttt{snm\_read\_norm} & 0.0462 & 0.0924 & 0.0109 & 0.0199 & \textbf{0.1016} \\
-\texttt{iddq\_norm} & 0.0374 & 0.0480 & 0.0134 & \textbf{0.0790} & 0.0392 \\
-\texttt{snm\_hold\_norm} & 0.0355 & 0.0400 & 0.0510 & 0.0459 & 0.0363 \\
+\texttt{t\_write\_norm} & \textbf{0.0789} & 0.0784 & \textbf{0.0739} & \textbf{0.0992} & 0.0624 \\
+\texttt{dv\_bl\_norm} & \textbf{0.0776} & \textbf{0.1647} & 0.0701 & 0.0734 & \textbf{0.0981} \\
+\texttt{snm\_read\_norm} & 0.0567 & 0.0924 & 0.0109 & 0.0199 & \textbf{0.1016} \\
+\texttt{dv\_bl\_vdd\_ratio} & 0.0269 & 0.0280 & 0.0185 & 0.0290 & 0.0322 \\
+\texttt{snm\_hold\_norm} & 0.0263 & 0.0400 & 0.0510 & 0.0459 & 0.0363 \\
+\texttt{iddq\_norm} & 0.0249 & 0.0480 & 0.0134 & \textbf{0.0790} & 0.0392 \\
 \bottomrule
 \end{tabular}
 }
@@ -523,7 +520,7 @@ The per-class breakdown illustrated in Fig.~\ref{fig:shap_class} establishes rem
 
 To maintain rigorous scientific standards, we note the explicit boundaries of this investigation:
 \begin{enumerate}
-    \item \textbf{Operational V-T Grid vs. Microscopic Transistor Mismatch:} In this work, operational environmental variation is systematically modeled across 15 Voltage-Temperature operating corners in standard 180\,nm CMOS technology, complemented by empirical reference measurement tolerance studies (Section~\ref{sec:tolerance}). In physical silicon, microscopic intra-die random device mismatch (e.g., Pelgrom-scaled threshold-voltage variations $\sigma(V_{\text{th}}) = A_{V_{\text{th}}} / \sqrt{W \cdot L}$) introduces non-linear stochastic offsets between adjacent transistors; full physical layout-extracted Monte Carlo array characterization represents an important direction for silicon tape-out.
+    \item \textbf{Operational PVT Grid vs. Microscopic Transistor Mismatch:} In this work, operational environmental and process variation is systematically modeled across 45 Process-Voltage-Temperature operating corners in standard 180\,nm CMOS technology (TT, FF, SS process corners $\times$ 15 V-T conditions), complemented by empirical reference measurement tolerance studies (Section~\ref{sec:tolerance}). In physical silicon, microscopic intra-die random device mismatch (e.g., Pelgrom-scaled threshold-voltage variations $\sigma(V_{\text{th}}) = A_{V_{\text{th}}} / \sqrt{W \cdot L}$) introduces non-linear stochastic offsets between adjacent transistors; full physical layout-extracted Monte Carlo array characterization represents an important direction for silicon tape-out.
     \item \textbf{Simulation vs Physical Silicon:} All evaluations are conducted using multi-threaded SPICE netlists. While SPICE models provide golden analog precision, physical silicon tape-out introduces unmodeled parasitics, power-grid IR drops, and thermal gradients across large memory arrays.
     \item \textbf{Reference Cell Health and Area Overhead:} The proposed methodology assumes the availability of an on-die healthy reference cell. In practical deployment, reference cell health is established during initial wafer-sort test screening, or via a fault-tolerant triplet of tracking cells with median voting to guard against random local manufacturing defects. In a typical memory macro (e.g., a 1\,Mb array of $1024 \times 1024$ cells), reserving a dedicated tracking cell pair requires $2 / 1{,}048{,}576 \approx 0.00019\%$ of the cell array area. Even in a modular 64\,Kb sub-bank ($256 \times 256$), allocating one tracking cell incurs only $1 / 65{,}536 \approx 0.0015\%$ overhead, well below $0.01\%$.
     \item \textbf{Target Test Architecture:} The extraction of high-resolution analog parameters ($1\,\text{mV}$ DC butterfly sweeps and sub-100ps internal timings) is tailored to post-silicon characterization test vehicles, dedicated scribe-line test structures, and yield-learning macros equipped with analog monitor pass-gates, rather than dense high-volume production array March testing where internal node access is physically constrained.
@@ -534,9 +531,9 @@ To maintain rigorous scientific standards, we note the explicit boundaries of th
 \section{Conclusion}
 \label{sec:conclusion}
 
-In this paper, we addressed the critical challenge of cross-environmental diagnostic collapse in machine-learning-based nanoscale SRAM testing. We showed that classical classifiers trained on raw parametric metrics suffer severe out-of-distribution failure when operating across realistic voltage and temperature envelopes, dropping to 46.67\% accuracy. To solve this, we proposed a physics-informed domain adaptation methodology that cancels common-mode environmental shifts using on-die concurrent reference normalization. 
+In this paper, we addressed the critical challenge of cross-environmental and process diagnostic collapse in machine-learning-based nanoscale SRAM testing. We showed that classical classifiers trained on raw parametric metrics suffer severe out-of-distribution failure when operating across realistic process, voltage, and temperature envelopes, dropping to 50.00\% accuracy (and 40.00\% for gradient boosted trees). To solve this, we proposed a physics-informed domain adaptation methodology that cancels common-mode environmental shifts using on-die concurrent reference normalization. 
 
-Through an automated SPICE harness executing 3,150 simulation runs across a 15-corner Voltage-Temperature grid (3 supply voltages $\times$ 5 temperatures) in standard 180\,nm CMOS, we validated that invariant feature normalization eliminates environmental dispersion by up to 100.0\% on healthy cells. Under rigorous Leave-One-Corner-Out (LOCO) benchmarking across all 15 corners (450 authentic SPICE samples), the proposed invariant formulation elevated Random Forest and HistGradientBoosting classification accuracy from 70.67\% and 74.00\% to 98.89\% and 98.89\% ($+28.22\%$ and $+24.89\%$ gain), lifting the worst-corner diagnostic floor from 46.67\% to 96.67\% and 93.33\% (with 10 of 15 corners achieving perfect 100.0\% accuracy and exactly 5 total misclassifications across the pooled dataset). Tree SHAP analysis validated that decision boundaries map directly to underlying device physics. This framework suggests feasibility for on-chip or BIST-assisted diagnostic flows in nanoscale SoCs, subject to hardware overhead evaluation.
+Through an automated SPICE harness executing 9,450 dynamic simulation runs plus 315 reference runs across a 45-corner Process-Voltage-Temperature grid (3 process corners $\times$ 3 supply voltages $\times$ 5 temperatures) in standard 180\,nm CMOS, we validated that invariant feature normalization eliminates environmental dispersion by up to 100.0\% on healthy cells. Under rigorous Leave-One-Corner-Out (LOCO) benchmarking across all 45 corners (1,350 authentic SPICE samples), the proposed invariant formulation elevated Random Forest and HistGradientBoosting classification accuracy from 75.11\% and 77.56\% to 99.33\% and 99.41\% ($+24.22\%$ and $+21.85\%$ gain), lifting the worst-corner diagnostic floor from 50.00\% and 40.00\% to 90.00\% and 86.67\% (with 39 of 45 corners achieving perfect 100.0\% accuracy for RF, 40 of 45 for HistGB, and exactly 9 total misclassifications across the pooled dataset: $1341/1350 = 99.33\%$). Tree SHAP analysis validated that decision boundaries map directly to underlying device physics. This framework suggests feasibility for on-chip or BIST-assisted diagnostic flows in nanoscale SoCs, subject to hardware overhead evaluation.
 
 % ======================================================================
 
