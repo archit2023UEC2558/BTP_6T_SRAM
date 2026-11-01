@@ -3,9 +3,9 @@
 [![Tests](https://img.shields.io/badge/pytest-62%20passed-brightgreen.svg)](#running-tests)
 [![Technology](https://img.shields.io/badge/Technology-180nm%20CMOS-blue.svg)](#circuit-implementation)
 [![Simulator](https://img.shields.io/badge/Simulator-LTspice-orange.svg)](#ltspice-configuration)
-[![PVT Corners](https://img.shields.io/badge/PVT%20Corners-15%20Grid-purple.svg)](#pvt-simulation-grid)
+[![PVT Corners](https://img.shields.io/badge/PVT%20Corners-45%20Grid-purple.svg)](#pvt-simulation-grid)
 
-An automated, end-to-end pair-programming framework for injecting physical and parametric defects into a 6T SRAM cell, running multi-threaded SPICE simulations across a 15-corner Process-Voltage-Temperature (PVT) grid, computing physics-normalized invariant features, and training machine learning models with Leave-One-Corner-Out (LOCO) cross-PVT validation.
+An automated, end-to-end pair-programming framework for injecting physical and parametric defects into a 6T SRAM cell, running multi-threaded SPICE simulations across a comprehensive 45-corner Process-Voltage-Temperature (PVT) grid (3 process corners $\times$ 15 V-T corners = 1,350 physical SPICE samples), computing physics-normalized invariant features, and training machine learning models with Leave-One-Corner-Out (LOCO) cross-PVT validation.
 
 ---
 
@@ -21,14 +21,16 @@ An automated, end-to-end pair-programming framework for injecting physical and p
 3. **Multi-Operation Simulation**:
    - **Dynamic Transient:** `hold`, `write` (Write 1), `write_0` (Write 0), `read` (Read 1), `read_0` (Read 0).
    - **Static DC Butterfly Curve:** `snm_hold` and `snm_read` with exact largest-inscribed-square search (pure NumPy).
-4. **15-Corner PVT Sweep**:
-   - Voltages: $0.9\,\text{V}$ ($-10\%$), $1.0\,\text{V}$ (nominal), $1.1\,\text{V}$ ($+10\%$).
-   - Temperatures: $-40^\circ\text{C}$, $0^\circ\text{C}$, $27^\circ\text{C}$ (room nominal), $75^\circ\text{C}$, $125^\circ\text{C}$.
+4. **45-Corner PVT Operating Envelope**:
+   - **Process Corners (3):** Typical-Typical (TT), Fast-Fast (FF), Slow-Slow (SS).
+   - **Supply Voltages (3):** $0.9\,\text{V}$ ($-10\%$), $1.0\,\text{V}$ (nominal), $1.1\,\text{V}$ ($+10\%$).
+   - **Temperatures (5):** $-40^\circ\text{C}$ (industrial cold), $0^\circ\text{C}$, $27^\circ\text{C}$ (room nominal), $75^\circ\text{C}$, $125^\circ\text{C}$ (worst-case thermal).
+   - Total PVT corners = $3 \times 3 \times 5 = 45$ corners.
 5. **Physics-Normalized Invariant Feature Engineering**: Normalizes transient delays, currents, and noise margins by a same-PVT healthy reference cell, reducing environmental parameter dispersion by up to $100\%$.
 6. **Cross-PVT Machine Learning Pipeline**:
-   - Classical classifiers: Random Forest, Logistic Regression, Linear SVM, HistGradientBoosting, and a Non-ML 3-sigma statistical baseline.
-   - Evaluated under both **Standard Split** and **Leave-One-Corner-Out (LOCO)** cross-validation.
-   - Cross-PVT accuracy increases from **$66.2\%$** (raw features) to **$>99.3\%$** (invariant features).
+   - Classical classifiers: Random Forest, HistGradientBoosting, Decision Tree, Logistic Regression, and a Non-ML 3-sigma statistical baseline.
+   - Evaluated under both **Standard Split** and **Leave-One-Corner-Out (LOCO)** cross-validation across all 45 corners.
+   - Cross-PVT LOCO accuracy increases from **$75.11\%$** (raw features) to **$99.33\%$** (invariant features) for Random Forest, and to **$99.41\%$** for HistGradientBoosting, lifting the worst-case corner accuracy floor from $50.00\%$ to $90.00\%$.
 
 ---
 
@@ -55,16 +57,16 @@ Audit device physics trends (exponential thermal leakage, overdrive scaling, and
 python scripts/verify_dataset_physics.py
 ```
 
-### 4. Generate the 15-Corner Dataset
+### 4. Generate the 45-Corner Dataset
 
 ```bash
 python src/generate_dataset.py
 ```
-Executes 3,255 parallel SPICE simulations across 8 worker threads and exports:
-- `data/sram_fault_dataset.csv` (450 rows $\times$ 33 columns, 0 NaNs)
-- `data/sram_fault_dataset_indist.csv` (30 rows, nominal corner: 1.0V, 27°C)
-- `data/sram_fault_dataset_ood.csv` (420 rows, 14 held-out PVT corners)
-- `logs/convergence_flags.csv` (traceability log)
+Executes 9,765 parallel SPICE simulations (9,450 fault runs + 315 dedicated reference characterizations) across worker threads and exports:
+- `data/sram_fault_dataset.csv` (1,350 rows $\times$ 34 columns, 0 NaNs)
+- `data/sram_fault_dataset_indist.csv` (30 rows, nominal corner: TT, 1.0V, 27°C)
+- `data/sram_fault_dataset_ood.csv` (1,320 rows, 44 held-out PVT corners)
+- `logs/convergence_flags_*.csv` (traceability logs)
 
 ---
 
@@ -82,14 +84,14 @@ btp-sram-fault-diagnosis/
 │   ├── simulation_runner.py    # Multi-threaded headless LTspice runner
 │   ├── snm_extraction.py       # Pure NumPy largest inscribed square search
 │   ├── feature_extractor.py    # Dynamic timing, sense voltage & SNM extraction
-│   ├── generate_dataset.py     # 15-corner dataset generation orchestrator
+│   ├── generate_dataset.py     # 45-corner dataset generation orchestrator
 │   ├── baseline_detector.py    # Non-ML 3-sigma statistical baseline detector
 │   ├── ml_pipeline.py          # Classical ML classifiers & LOCO evaluation
 │   └── cross_pvt_analysis.py   # Feature dispersion analysis & publication figures
 ├── data/
-│   ├── sram_fault_dataset.csv         # Master dataset (450 x 33, zero NaNs)
+│   ├── sram_fault_dataset.csv         # Master dataset (1350 x 34, zero NaNs)
 │   ├── sram_fault_dataset_indist.csv  # Nominal in-distribution split
-│   └── sram_fault_dataset_ood.csv     # Held-out 14-corner OOD split
+│   └── sram_fault_dataset_ood.csv     # Held-out 44-corner OOD split (1320 samples)
 ├── scripts/
 │   ├── verify_dataset_physics.py      # Automated physics validation audit
 │   ├── demo_feature_extraction.py     # 25-sim dynamic transient benchmark
