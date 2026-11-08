@@ -2,7 +2,7 @@
 
 **Project:** BTP — Automated 6T SRAM Fault Injection, PVT Simulation & Diagnostic Framework  
 **Document Purpose:** Complete, step-by-step handover and execution guide for collaborators taking over Phase 2.  
-**Repository State:** Phase 1 Complete (SPICE Netlists, SNM Extraction, Fault Injection, 15-Corner PVT Simulations, 450-Sample Dataset, 62/62 Unit Tests Passing).
+**Repository State:** Phase 1 Complete (SPICE Netlists, SNM Extraction, Fault Injection, 45-Corner PVT Simulations, 1,350-Sample Dataset, 62/62 Unit Tests Passing).
 
 ---
 
@@ -20,12 +20,12 @@
    - Class 3: $V_{th}$ Drift on cross-coupled inverters $M_1$–$M_4$ ($\pm 5\%$ to $\pm 30\%$).
    - Class 4: $V_{th}$ Drift on access transistors $M_5/M_6$ ($\pm 5\%$ to $\pm 30\%$).
 4. **PVT Simulation Engine & Multi-Threading** ([`src/simulation_runner.py`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/src/simulation_runner.py), [`src/testbench_composer.py`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/src/testbench_composer.py)):
-   - 15-corner grid: $V_{DD} \in [0.9, 1.0, 1.1]\,\text{V}$, $T \in [-40, 0, 27, 75, 125]^\circ\text{C}$.
+   - 45-corner grid: 3 process corners (TT, FF, SS) $\times$ 3 supply voltages ($0.9\,\text{V}, 1.0\,\text{V}, 1.1\,\text{V}$) $\times$ 5 temperatures ($-40^\circ\text{C}, 0^\circ\text{C}, 27^\circ\text{C}, 75^\circ\text{C}, 125^\circ\text{C}$).
    - 3,255 SPICE simulations executed with zero file collisions and on-the-fly binary waveform pruning.
 5. **Verified Clean Datasets** (in `data/`):
-   - [`data/sram_fault_dataset.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/data/sram_fault_dataset.csv): Master dataset (**450 rows $\times$ 33 columns**, **0 NaNs**).
+   - [`data/sram_fault_dataset.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/data/sram_fault_dataset.csv): Master dataset (**1,350 rows $\times$ 34 columns**, **0 NaNs**).
    - [`data/sram_fault_dataset_indist.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/data/sram_fault_dataset_indist.csv): In-distribution nominal split (30 rows, $1.0\,\text{V}, 27^\circ\text{C}$).
-   - [`data/sram_fault_dataset_ood.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/data/sram_fault_dataset_ood.csv): Out-of-distribution split (420 rows, 14 held-out PVT corners).
+   - [`data/sram_fault_dataset_ood.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/data/sram_fault_dataset_ood.csv): Out-of-distribution split (1,320 rows, 44 held-out PVT corners).
    - [`logs/convergence_flags.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/logs/convergence_flags.csv): Traceability and DC monotonicity audit log.
 6. **Codebase Quality**:
    - Full regression test suite passing: `pytest` passes **62/62 tests**.
@@ -42,7 +42,7 @@ Phase 2 consists of **4 main objectives**:
 +---------------------------------------------------------------------------------+
 |  STAGE 5: Feature Analysis & Dispersion Validation                             |
 |  - Verify Coefficient of Variation (CV) reduction on healthy cells.            |
-|  - Confirm invariance of physics-normalized features across 15 PVT corners.     |
+|  - Confirm invariance of physics-normalized features across 45 PVT corners.     |
 +---------------------------------------------------------------------------------+
                                       |
                                       v
@@ -51,7 +51,7 @@ Phase 2 consists of **4 main objectives**:
 |  - Execute Non-ML 3-Sigma Rule Baseline (src/baseline_detector.py).             |
 |  - Train 4 Classical Models: RF, Logistic Regression, Linear SVM, HistGB.       |
 |  - Protocol 1: Standard Split (Nominal 1.0V, 27°C, leakage-checked).            |
-|  - Protocol 2: Leave-One-Corner-Out (LOCO across all 15 corners).               |
+|  - Protocol 2: Leave-One-Corner-Out (LOCO across all 45 corners).               |
 |  - Export reports/final_results/comparison_table.csv and trained models (.pkl). |
 +---------------------------------------------------------------------------------+
                                       |
@@ -61,7 +61,7 @@ Phase 2 consists of **4 main objectives**:
 |  - Generate publication-grade plots in reports/figures/:                        |
 |    * Fig 1: Feature dispersion boxplots (Raw vs Invariant).                     |
 |    * Fig 2: Cross-PVT generalization bar chart (Raw vs Invariant).              |
-|    * Fig 3: Corner degradation heatmap across 15 corners.                       |
+|    * Fig 3: Corner degradation heatmap across 45 corners.                       |
 |  - (Optional / Stretch): SHAP feature importance analysis on best model.        |
 +---------------------------------------------------------------------------------+
                                       |
@@ -132,7 +132,7 @@ python src/ml_pipeline.py
    - **Physics-Normalized Invariant Features:** `iddq_norm`, `t_write_norm`, `dv_bl_norm`, `snm_hold_norm`, `snm_read_norm`, `read_write_delay_ratio`, `snm_ratio`, `dv_bl_vdd_ratio`, `hold_pass`, `write_pass`, `read_stable_pass`, `is_bistable`.
 3. **Protocols:**
    - **Protocol 1 (Standard Split):** In-distribution nominal corner (`1.0V`, `27°C`). Train/test 80/20 stratified split. Asserts **zero sample ID overlap** (leakage-free).
-   - **Protocol 2 (Leave-One-Corner-Out / LOCO):** Iteratively trains on 14 corners (420 samples) and tests on 1 held-out corner (30 samples) across all 15 corners.
+   - **Protocol 2 (Leave-One-Corner-Out / LOCO):** Iteratively trains on 14 corners (420 samples) and tests on 1 held-out corner (30 samples) across all 45 corners.
 4. **Outputs Generated:**
    - Saved model weights in `models/*.pkl`
    - Master comparison table: [`reports/final_results/comparison_table.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/final_results/comparison_table.csv)
@@ -151,7 +151,7 @@ python src/cross_pvt_analysis.py
 
 #### Generated Artifacts:
 1. [`reports/figures/fig1_feature_dispersion_comparison.png`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/figures/fig1_feature_dispersion_comparison.png):
-   - Standardized Z-score boxplots for Healthy cells across all 15 corners comparing Raw vs Invariant features.
+   - Standardized Z-score boxplots for Healthy cells across all 45 corners comparing Raw vs Invariant features.
    - Shows that Hold SNM and Bitline $\Delta V_{\text{BL}}$ dispersion are reduced to **0.0%**, and write delay variation is cut by **57.4%**.
 2. [`reports/figures/fig2_cross_pvt_loco_accuracy.png`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/figures/fig2_cross_pvt_loco_accuracy.png):
    - Grouped bar chart comparing LOCO accuracy (Mean $\pm$ 1 Std Dev) between Raw and Invariant features across all 4 ML models.
@@ -194,7 +194,7 @@ To generate SHAP summary and waterfall plots for the thesis:
 
 Collaborators can verify their training outputs against these expected benchmarks:
 
-### 4.1 Feature Dispersion (Healthy Cells across 15 Corners)
+### 4.1 Feature Dispersion (Healthy Cells across 45 Corners)
 | Feature | Raw Mean $\pm$ Std | Raw CV (%) | Invariant Mean $\pm$ Std | Invariant CV (%) | Spread Reduction |
 |---|---|---|---|---|---|
 | **Hold SNM** | $0.441 \pm 0.051\,\text{V}$ | $11.6\%$ | $1.000 \pm 0.000$ | **$0.0\%$** | **$100\%$ eliminated** |
@@ -226,7 +226,7 @@ When writing the paper or thesis report, structure the content as follows:
 - Mathematical definitions of butterfly-curve Static Noise Margins (Hold SNM and Read SNM) using the largest inscribed square method.
 
 ### Section 3: PVT Simulation Framework
-- 15-corner grid: $V_{DD} \in \{0.9, 1.0, 1.1\}\,\text{V}$, $T \in \{-40, 0, 27, 75, 125\}^\circ\text{C}$.
+- 45-corner grid: 3 process corners (TT, FF, SS) $\times$ 3 supply voltages $\times$ 5 temperatures.
 - Multi-threaded headless simulation engine with transient convergence and DC monotonicity checks.
 - Dataset construction: 450 balanced samples, 33-column schema, zero-NaN guarantee.
 
@@ -241,7 +241,7 @@ When writing the paper or thesis report, structure the content as follows:
 - **Explain the Physics:** Why does raw accuracy drop to $66\%$ under LOCO? Because subthreshold leakage increases $>100\times$ between $-40^\circ\text{C}$ and $125^\circ\text{C}$, leading the classifier to misdiagnose high temperature as an internal bridging fault. Invariant normalization removes this thermal pedestal, restoring $>99\%$ accuracy.
 
 ### Section 6: Conclusion
-- Summary of achievements: automated SPICE pipeline, 15-corner PVT dataset, $>33\%$ cross-PVT generalization improvement, and publication-ready diagnostic models.
+- Summary of achievements: automated SPICE pipeline, 45-corner PVT dataset, $>33\%$ cross-PVT generalization improvement, and publication-ready diagnostic models.
 
 ---
 

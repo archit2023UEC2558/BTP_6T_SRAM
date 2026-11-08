@@ -1,13 +1,13 @@
 # 6T SRAM Fault Injection, Simulation & Diagnostic Pipeline — Complete Project Documentation
 
 **Project:** BTP — Automated SRAM Fault Injection & Diagnosis  
-**Technology Node:** 180nm CMOS ($V_{DD} = 1.0\,\text{V}$ nominal, $0.9\,\text{V}$–$1.1\,\text{V}$ PVT sweep)  
+**Technology Node:** 180nm CMOS ($V_{DD} = 1.0\,\text{V}$ nominal, $0.9\,\text{V}$–$1.1\,\text{V}$ PVT sweep, TT/FF/SS process corners)  
 **Simulator Engine:** LTspice (via PyLTSpice / direct headless subprocess execution)  
 **Status:** All Stages (1 through 8) Fully Implemented, Verified, Trained, and Audited  
 **Test Suite:** 62/62 Tests Passing (`pytest`)  
-**Dataset:** 450 samples across 15 PVT corners, 33-column schema, 0 missing/NaN values  
+**Dataset:** 1,350 physical SPICE samples across 45 PVT corners (3 process corners $\times$ 3 supply voltages $\times$ 5 temperatures), 34-column schema, 0 missing/NaN values  
 **Models:** 20 trained model artifacts persisted in `models/`  
-**Generalization Gain:** **$+16.2\%$ to $+33.1\%$** improvement under cross-PVT testing using Physics-Normalized Invariant Features  
+**Generalization Gain:** **$+21.8\%$ to $+24.9\%$** cross-PVT LOCO improvement using Physics-Normalized Invariant Features (Random Forest: $75.11\% \to 99.33\%$, worst-corner floor lifted from $50.00\%$ to $90.00\%$)  
 
 ---
 
@@ -16,10 +16,10 @@
 This repository contains an end-to-end automated framework for:
 1. Modeling physical and parametric defects in a standard 6T SRAM cell (Resistive Opens, Bridging Faults, and $V_{th}$ Drifts).
 2. Composing runnable SPICE testbenches for multiple memory operations (Hold, Write 1/0, Read 1/0, and DC Butterfly-Curve Hold/Read Static Noise Margins).
-3. Simulating across a 15-corner Process-Voltage-Temperature (PVT) grid ($V_{DD} \in [0.9, 1.0, 1.1]\,\text{V}$, $T \in [-40, 0, 27, 75, 125]^\circ\text{C}$).
+3. Simulating across a 45-corner Process-Voltage-Temperature (PVT) grid (3 process corners: TT, FF, SS; $V_{DD} \in [0.9, 1.0, 1.1]\,\text{V}$; $T \in [-40, 0, 27, 75, 125]^\circ\text{C}$).
 4. Extracting raw dynamic/static features and computing physics-normalized invariant features relative to a same-PVT reference cell.
 5. Providing both non-ML baseline rule detectors and classical machine learning classifiers (Random Forest, Logistic Regression, Linear SVM, HistGradientBoosting).
-6. Evaluating cross-PVT generalization via Standard Split and Leave-One-Corner-Out (LOCO) protocols across all 15 corners.
+6. Evaluating cross-PVT generalization via Standard Split and Leave-One-Corner-Out (LOCO) protocols across all 45 corners.
 7. Conducting data policy sensitivity audits and generating publication-ready figures.
 
 ```
@@ -54,7 +54,7 @@ This repository contains an end-to-end automated framework for:
                      [ src/snm_extraction.py    ]
                                       |
                      +----------------------------------+
-                     | Master Dataset (450 x 33 CSV)    |
+                     | Master Dataset (1350 x 34 CSV)   |
                      |  Raw + Physics-Normalized Ratios |
                      +----------------------------------+
                                       |
@@ -97,7 +97,7 @@ btp-sram-fault-diagnosis/
 │   ├── simulation_runner.py             # Multi-threaded direct batch runner, DC integrity validation
 │   ├── snm_extraction.py                # Pure NumPy largest inscribed square search (Hold & Read)
 │   ├── feature_extractor.py             # Dynamic timing, differential voltage, IDDQ & SNM extraction
-│   ├── generate_dataset.py              # Full 15-corner dataset generation orchestrator
+│   ├── generate_dataset.py              # Full 45-corner dataset generation orchestrator
 │   ├── baseline_detector.py             # Non-ML 3-sigma statistical baseline classifier
 │   ├── ml_pipeline.py                   # Classical ML models, Standard Split, and LOCO protocols
 │   └── cross_pvt_analysis.py            # Feature spread analysis and publication-ready figures
@@ -123,9 +123,9 @@ btp-sram-fault-diagnosis/
 │   ├── nonml_baseline_raw_leaveonecorner.pkl
 │   └── nonml_baseline_raw_standard.pkl
 ├── data/
-│   ├── sram_fault_dataset.csv           # Master complete dataset (450 rows x 33 cols, 0 NaNs)
-│   ├── sram_fault_dataset_indist.csv    # In-distribution nominal dataset (30 rows, 1.0V, 27°C)
-│   ├── sram_fault_dataset_ood.csv       # Out-of-distribution dataset (420 rows, 14 held-out corners)
+│   ├── sram_fault_dataset.csv           # Master complete dataset (1350 rows x 34 cols, 0 NaNs)
+│   ├── sram_fault_dataset_indist.csv    # In-distribution nominal dataset (30 rows, TT, 1.0V, 27°C)
+│   ├── sram_fault_dataset_ood.csv       # Out-of-distribution dataset (1320 rows, 44 held-out corners)
 │   └── demo_features/                   # Transient and SNM benchmark demonstration outputs
 ├── logs/
 │   └── convergence_flags.csv            # SPICE convergence & DC monotonicity audit log
@@ -219,11 +219,14 @@ Cqb Q  0 1fF
 
 ## 5. PVT Simulation Engine & Multi-Threading
 
-### 5.1 PVT Sweep Grid (15 Corners)
-- **Supply Voltage ($V_{DD}$):** $0.9\,\text{V}$ ($-10\%$), $1.0\,\text{V}$ (nominal), $1.1\,\text{V}$ ($+10\%$)
-- **Temperature ($T$):** $-40^\circ\text{C}$ (industrial cold), $0^\circ\text{C}$, $27^\circ\text{C}$ (room nominal), $75^\circ\text{C}$, $125^\circ\text{C}$ (worst-case thermal)
-- **In-Distribution Corner:** $V_{DD} = 1.0\,\text{V}, T = 27^\circ\text{C}$ (`C_27C_1P0V`, 30 samples)
-- **Out-of-Distribution (OOD):** Remaining 14 corners (420 samples)
+### 5.1 PVT Sweep Grid (45 Corners)
+- **Process Corners (3):** Typical-Typical (TT), Fast-Fast (FF), Slow-Slow (SS)
+- **Supply Voltage ({DD}$):** .9\,\text{V}$ ($-10\%$), .0\,\text{V}$ (nominal), .1\,\text{V}$ ($+10\%$)
+- **Temperature ($):** $-40^\circ\text{C}$ (industrial cold), ^\circ\text{C}$, ^\circ\text{C}$ (room nominal), ^\circ\text{C}$, ^\circ\text{C}$ (worst-case thermal)
+- **Grid Configuration:**  \times 3 \times 5 = 45$ PVT corners ($ samples/corner = ,350$ total samples)
+- **In-Distribution Corner:** {DD} = 1.0\,\text{V}, T = 27^\circ\text{C}$, TT process (TT_C_27C_1P0V, 30 samples)
+- **Out-of-Distribution (OOD):** Remaining 44 corners (1,320 samples)
+- **Total SPICE Simulations:** 9,765 physical runs (9,450 fault runs + 315 dedicated reference characterizations)
 
 ### 5.2 Dynamic Netlist Composer
 [`src/testbench_composer.py`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/src/testbench_composer.py) dynamically updates:
@@ -240,9 +243,9 @@ PyLTSpice's default `SimRunner.run_now()` exhibits file collision errors on Wind
 
 ## 6. Dataset Schema & Physics Normalization
 
-### 6.1 Master Dataset Schema (33 Columns)
+### 6.1 Master Dataset Schema (34 Columns)
 Each row in [`data/sram_fault_dataset.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/data/sram_fault_dataset.csv) contains:
-- **Metadata:** `sample_id`, `corner_id`, `pvt_type`, `vdd_v`, `temperature_c`
+- **Metadata:** `sample_id`, `corner_id`, `pvt_type`, `vdd_v`, `temperature_c`, `process_corner`
 - **Labels:** `fault_class` ($0$ to $4$), `fault_name`, `fault_target`, `severity_value`
 - **Raw Dynamic Features:** `i_ddq_uA`, `t_write_ps`, `i_write_peak_mA`, `dv_bl_strobe_mV`, `t_sense_ps`, `v_bump_mV`, `hold_pass`, `write_pass`, `read_stable_pass`
 - **Raw Static & SNM Features:** `snm_hold_v`, `snm_read_v`, `snm_asym_hold_v`, `snm_asym_read_v`, `snm_drop_v`, `is_bistable`
@@ -281,7 +284,7 @@ Drive current scales with overdrive ($V_{GS} - V_{th}$):
 - **Class 3 ($V_{th}$ Drift Storage):** Hold SNM degrades monotonically from $0.443\,\text{V}$ ($5\%$) to $0.406\,\text{V}$ ($30\%$).
 - **Class 4 ($V_{th}$ Drift Access):** Read sense delay $t_{\text{sense}}$ increases from $64.52\,\text{ps}$ to $87.85\,\text{ps}$; Hold SNM remains strictly invariant ($0.441\,\text{V}$), cleanly decoupling Class 3 from Class 4.
 
-### 7.4 Dispersion Reduction Across 15 PVT Corners
+### 7.4 Dispersion Reduction Across 45 PVT Corners
 | Feature | Raw CV ($\sigma/\mu$) | Normalized Invariant CV | Dispersion Reduction |
 |---|---|---|---|
 | **Hold SNM** | $11.6\%$ | **$0.0\%$** | **$100\%$ eliminated** |
@@ -302,23 +305,30 @@ Stratified 80/20 train/test split on nominal data with automated assertion verif
 
 ---
 
-### 8.2 Protocol 2: Leave-One-Corner-Out (LOCO across all 15 Corners)
-Iteratively trains on 14 corners ($420$ samples) and tests on 1 held-out corner ($30$ samples) across all 15 PVT corners:
+### 8.2 Protocol 2: Leave-One-Corner-Out (LOCO across all 45 Corners)
+Iteratively trains on 44 corners ($1,320$ samples) and tests on 1 held-out corner ($30$ samples) across all 45 PVT corners (1,350 evaluations):
 
 #### Master Empirical Results Table ([`reports/final_results/loco_summary.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/final_results/loco_summary.csv))
 | Model Architecture | Raw Features Accuracy | Invariant Features Accuracy | Generalization Gain | Worst-Corner Floor (Min) |
 |---|:---:|:---:|:---:|:---:|
-| **Random Forest** | $82.67\% \pm 16.05\%$ | **$98.89\% \pm 1.62\%$** | **$+16.22\%$** | $50.0\% \to \mathbf{96.67\%}$ |
-| **HistGradientBoosting** | $82.89\% \pm 17.08\%$ | **$98.89\% \pm 2.06\%$** | **$+16.00\%$** | $46.7\% \to \mathbf{93.33\%}$ |
-| **Linear SVM** | $72.67\% \pm 15.75\%$ | **$84.22\% \pm 7.71\%$** | **$+11.55\%$** | $36.7\% \to \mathbf{63.33\%}$ |
-| **Logistic Regression** | $76.89\% \pm 15.66\%$ | **$83.11\% \pm 9.30\%$** | **$+6.22\%$** | $40.0\% \to \mathbf{60.00\%}$ |
-| **Non-ML Baseline** | $33.33\% \pm 8.26\%$ | $21.56\% \pm 2.78\%$ | Control | Rule-based failure |
+| **Random Forest** | $75.11\% \pm 11.23\%$ | **$99.33\% \pm 2.05\%$** | **$+24.22\%$** | $50.00\% \to \mathbf{90.00\%}$ *(39/45 perfect corners)* |
+| **HistGradientBoosting** | $77.56\% \pm 12.87\%$ | **$99.41\% \pm 2.12\%$** | **$+21.85\%$** | $40.00\% \to \mathbf{86.67\%}$ *(40/45 perfect corners)* |
+| **Decision Tree** | $73.56\% \pm 13.41\%$ | **$98.44\% \pm 3.10\%$** | **$+24.88\%$** | $36.67\% \to \mathbf{86.67\%}$ |
+| **Logistic Regression** | $80.59\% \pm 10.95\%$ | **$86.89\% \pm 8.74\%$** | **$+6.30\%$** | $46.67\% \to \mathbf{63.33\%}$ |
+| **Non-ML Baseline ($3\sigma$)** | $3.33\% \pm 4.21\%$ | $3.33\% \pm 4.21\%$ | Control | Rule-based failure |
+
+- **Ablation Model B' (Parametric-only, 8 Ratios, No Functional Pass/Fail Flags):** Achieves **$99.48\%$** LOCO accuracy and a **$90.00\%$** worst-case corner floor, confirming that high diagnostic accuracy is driven entirely by continuous physical degradation signatures rather than binary functional flags.
+- **Leave-One-Severity-Out (LOSO) Generalization:**
+  - Mean interpolation across interior severities ($S_2$–$S_5$): **$99.54\%$**
+  - Incipient fault extrapolation ($S_1$ holdout): **$90.74\%$**
+  - Severe fault extrapolation ($S_6$ holdout): **$100.00\%$**
+- **Joint PVT + Severity Holdout:** Evaluated on 450 unseen corner-severity combinations, achieving **$99.11\%$** accuracy.
 
 #### Physical Rationale for the Generalization Collapse on Raw Features:
-Under extreme corners (e.g. held-out corner `C_0C_0P9V` at $0^\circ\text{C}, 0.9\,\text{V}$), raw feature accuracy drops to **$40\%$–$56\%$** because:
-1. Low supply voltage ($0.9\,\text{V}$) slows down healthy cell switching, causing raw classifiers to misclassify benign healthy cells as resistive opens.
-2. High temperature ($125^\circ\text{C}$) raises subthreshold leakage by $>100\times$, causing raw classifiers to misclassify healthy cells as bridging faults.
-3. Physics-normalized invariant features cancel out these common-mode supply and thermal shifts, maintaining **$>98.8\%$ accuracy across all 15 corners**.
+Under extreme corners (e.g. low supply $0.9\,\text{V}$ and high temperature $125^\circ\text{C}$), raw feature accuracy drops to **$36.7\%$–$50.0\%$** because:
+1. Low supply voltage ($0.9\,\text{V}$) reduces gate overdrive and slows down healthy cell switching, causing raw classifiers to misclassify benign healthy cells as resistive opens.
+2. High temperature ($125^\circ\text{C}$) raises subthreshold leakage by $>115\times$, causing raw classifiers to misclassify healthy cells as bridging faults.
+3. Physics-normalized invariant features cancel out these common-mode supply, thermal, and process variations, maintaining **$99.33\%$ to $99.41\%$ accuracy across all 45 corners**.
 
 ---
 
@@ -333,24 +343,24 @@ In [`reports/audit/final_comparison_table.csv`](file:///c:/Users/AYUSH/Desktop/b
 ---
 
 ### 8.4 Explainability & Feature Attribution via TreeExplainer SHAP
-To interpret the decision boundaries of the best invariant-feature Random Forest model, we computed SHAP (SHapley Additive exPlanations) values across all 450 samples and 12 invariant features ([`scripts/run_shap_analysis.py`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/scripts/run_shap_analysis.py)):
+To interpret the decision boundaries of the best invariant-feature Random Forest model, we computed SHAP (SHapley Additive exPlanations) values across all 1,350 samples and invariant features ([`scripts/run_shap_analysis.py`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/scripts/run_shap_analysis.py)):
 
 #### Global Feature Importance ([`reports/final_results/shap_feature_importance.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/final_results/shap_feature_importance.csv)):
-1. **`dv_bl_norm` (Mean $|SHAP| = 0.0786$):** Primary driver for Class 1 (Resistive Opens, $0.1556$) and Class 4 (Access $V_{th}$ Drift, $0.0956$), as bitline discharge is heavily governed by access pass-gate impedance.
-2. **`t_write_norm` (Mean $|SHAP| = 0.0737$):** Primary driver for Class 3 (Storage Inverter $V_{th}$ Drift, $0.1001$) and Class 1 ($0.0862$), reflecting write delay degradation.
-3. **`snm_read_norm` (Mean $|SHAP| = 0.0462$):** Strong discriminator for access transistor degradation ($0.0981$).
-4. **`iddq_norm` (Mean $|SHAP| = 0.0306$):** Captures static leakage anomalies.
-5. **`snm_hold_norm` (Mean $|SHAP| = 0.0294$):** Decouples internal storage inverter drift ($0.0506$) from access transistor drift.
+1. **`t_write_norm` (Mean $|SHAP| = 0.0789$):** Primary discriminator for writeability faults, separating Class 1 (Resistive Opens) and Class 3 (Storage Inverter $V_{th}$ Drift).
+2. **`dv_bl_norm` (Mean $|SHAP| = 0.0776$):** Primary driver for read access degradation (Class 1 and Class 4), as bitline discharge is heavily governed by access pass-gate impedance.
+3. **`snm_read_norm` (Mean $|SHAP| = 0.0567$):** Strong discriminator for access transistor degradation and read stability.
+4. **`iddq_norm` (Mean $|SHAP| = 0.0315$):** Decisively isolates Class 2 (Bridging Shorts) by capturing quiescent leakage anomalies.
+5. **`snm_hold_norm` (Mean $|SHAP| = 0.0289$):** Decouples internal storage inverter drift from access transistor drift.
 
 ---
 
 ## 9. Publication Figures & Visual Assets
 
 All figures are rendered at 300 DPI and stored in [`reports/figures/`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/figures/):
-1. **`fig1_feature_dispersion_comparison.png`:** Standardized Z-score boxplots for healthy cells across all 15 PVT corners, demonstrating the collapse of spread in Hold SNM, bitline discharge voltage, and write delay.
+1. **`fig1_feature_dispersion_comparison.png`:** Standardized Z-score boxplots for healthy cells across all 45 PVT corners, demonstrating the collapse of spread in Hold SNM, bitline discharge voltage, and write delay.
 2. **`fig1b_fault_dispersion.png`:** Cross-corner dispersion boxplots for each individual fault class (Open, Bridge, $V_{th}$ Storage, $V_{th}$ Access), showing dispersion reduction across all fault classes.
 3. **`fig2_cross_pvt_loco_accuracy.png`:** Grouped bar chart comparing LOCO accuracy (Mean $\pm$ 1 Std Dev) between Raw and Invariant features across all 4 ML models.
-4. **`fig3_rf_pvt_corner_heatmap.png`:** Per-corner LOCO accuracy heatmap across the 15 PVT corners for Random Forest.
+4. **`fig3_rf_pvt_corner_heatmap.png`:** Per-corner LOCO accuracy heatmap across all 45 PVT corners for Random Forest.
 5. **`fig3b_rf_grid.png`:** $3 \times 5$ temperature-voltage grid representation of Random Forest generalization accuracy.
 6. **`fig4_shap_summary.png`:** Global feature importance bar chart based on mean $|SHAP|$ values across invariant features.
 7. **`fig4b_shap_class_importance.png`:** SHAP feature importance disaggregated by fault class, demonstrating the physical basis for each diagnostic prediction.

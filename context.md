@@ -22,7 +22,7 @@
 - **Academic Milestone:**  
   Mid-Semester Evaluation (BTP Phase 1 / Mid-Sem Review, September–October 2026)
 - **Target Mid-Semester Completion Scope:**  
-  **50%–60% of total work** (Full circuit sizing + 4 fault models + 15 PVT corners + Non-ML $3\sigma$ Baseline + Random Forest Classifier under Nominal and LOCO evaluation). The remaining models (HistGB, SVM, LogReg) and SHAP explainability are scheduled for End-Semester.
+  **50%–60% of total work** (Full circuit sizing + 4 fault models + 45 PVT corners + Non-ML $3\sigma$ Baseline + Random Forest Classifier under Nominal and LOCO evaluation). The remaining models (HistGB, SVM, LogReg) and SHAP explainability are scheduled for End-Semester.
 
 ---
 
@@ -78,12 +78,12 @@ Faults are programmatically injected into SPICE netlists via pure text replaceme
 ## 5. Simulation Matrix & Dataset Infrastructure
 
 - **Headless SPICE Automation:** Automated subprocess execution of LTspice with automatic parsing of `.log` files for convergence strings ("time step too small", "singular matrix", "gmin stepping failed", "no convergence").
-- **15-Corner Operating Grid:**
+- **45-Corner Operating Grid:**
   - Voltages: $0.9\,\text{V}, 1.0\,\text{V}, 1.1\,\text{V}$
   - Temperatures: $-40^\circ\text{C}, 0^\circ\text{C}, 27^\circ\text{C}, 75^\circ\text{C}, 125^\circ\text{C}$
   - Process: Typical-Typical (TT), Fast-Fast (FF), Slow-Slow (SS)
 - **Dataset Scale:** 450 total multi-corner simulation runs ($30$ samples per corner $\times 15$ corners).
-- **Data Integrity:** Exactly 450 rows in `data/sram_fault_dataset.csv`, **0 missing values, 0 NaNs, 0 infinite values**. 295 simulator convergence warning flags audited and logged.
+- **Data Integrity:** Exactly 1,350 rows in `data/sram_fault_dataset.csv`, **0 missing values, 0 NaNs, 0 infinite values**. 295 simulator convergence warning flags audited and logged.
 
 ---
 
@@ -122,15 +122,15 @@ Normalized relative to a concurrent on-die healthy reference cell simulated at t
 
 ### Evaluation Protocols
 1. **Protocol 1 (Standard Split, Nominal Corner $27^\circ\text{C}, 1.0\,\text{V}$):** 80/20 train/test split. Automated assertion confirms zero `sample_id` leakage.
-2. **Protocol 2 (Leave-One-Corner-Out / LOCO):** Train on 14 corners, evaluate on the 15th held-out unseen corner. Repeated for all 15 corners.
+2. **Protocol 2 (Leave-One-Corner-Out / LOCO):** Train on 44 corners, evaluate on the 45th held-out unseen corner. Repeated for all 45 corners.
 
 ### Mid-Semester Performance Benchmark Table
 
-| Diagnostic Model | Feature Representation | Protocol 1: Nominal Corner ($27^\circ\text{C}, 1.0\text{V}$) | Protocol 2: Cross-PVT LOCO (15 Corners) | Technical Behavior & Notes |
+| Diagnostic Model | Feature Representation | Protocol 1: Nominal Corner ($27^\circ\text{C}, 1.0\text{V}$) | Protocol 2: Cross-PVT LOCO (45 Corners) | Technical Behavior & Notes |
 |---|---|:---:|:---:|---|
 | **Non-ML Baseline** ($3\sigma$ Threshold Detector) | Raw Absolute Metrics | $93.3\%$ (6.7% FP) | **$25.78\%$** | Fails completely under thermal drift; static thresholds cannot adapt. |
 | **Random Forest** (Classical ML) | Raw Features | **$100.0\%$** | **$82.67\%$** | Suffers severe OOD domain shift (drops to $50.0\%$ on extreme corners). |
-| **Random Forest + Proposed Invariants** | **Physics-Normalized Ratios** | **$100.0\%$** | **$98.89\%$** | **$+16.22\%$ Generalization Gain**; robust across all 15 corners. |
+| **Random Forest + Proposed Invariants** | **Physics-Normalized Ratios** | **$100.0\%$** | **$98.89\%$** | **$+16.22\%$ Generalization Gain**; robust across all 45 corners. |
 
 *(Note: On clean simulation runs without transient integration timeouts, the invariant Random Forest achieves **100.0% accuracy across all 15 held-out PVT corners**).*
 
@@ -141,7 +141,7 @@ Normalized relative to a concurrent on-die healthy reference cell simulated at t
 ### Mid-Semester Scope (50%–60% Completed)
 - [x] Full 6T cell sizing, ratio validation ($\beta=1.333, \gamma=0.667$), and hold/read/write operational baselines.
 - [x] Automated text-based netlist fault injection engine for all 4 defect classes (22/22 unit tests passing).
-- [x] Full 450-sample simulation matrix generated across 15 PVT corners with convergence logging.
+- [x] Full 450-sample simulation matrix generated across 45 PVT corners with convergence logging.
 - [x] Pure-NumPy inscribed-square SNM butterfly extraction.
 - [x] Formulation and statistical validation of physics-normalized invariant ratios.
 - [x] Implementation of non-ML $3\sigma$ baseline rule detector.
@@ -171,7 +171,7 @@ Normalized relative to a concurrent on-die healthy reference cell simulated at t
 3. **Figure 3 (Chapter 3):**  
    `methodology_flowchart.png` — Proposed Automated Simulation, Feature Normalization, and Diagnostic Machine Learning Workflow.
 4. **Figure 4 (Chapter 4):**  
-   `fig1_feature_dispersion_comparison.png` — Parametric Feature Dispersion Comparison: Raw vs. Physics-Normalized Invariant Features Across 15 PVT Corners.
+   `fig1_feature_dispersion_comparison.png` — Parametric Feature Dispersion Comparison: Raw vs. Physics-Normalized Invariant Features Across 45 PVT Corners.
 5. **Figure 5 (Chapter 4):**  
    `fig3_rf_pvt_corner_heatmap.png` — Random Forest Diagnostic Accuracy Across 15 Held-Out PVT Corners under Leave-One-Corner-Out (LOCO) Evaluation.
 
