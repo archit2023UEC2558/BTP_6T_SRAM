@@ -141,7 +141,7 @@ Normalized relative to a concurrent on-die healthy reference cell simulated at t
 ### Mid-Semester Scope (50%–60% Completed)
 - [x] Full 6T cell sizing, ratio validation ($\beta=1.333, \gamma=0.667$), and hold/read/write operational baselines.
 - [x] Automated text-based netlist fault injection engine for all 4 defect classes (22/22 unit tests passing).
-- [x] Full 450-sample simulation matrix generated across 45 PVT corners with convergence logging.
+- [x] Full 1,350-sample simulation matrix generated across 45 PVT corners with convergence logging.
 - [x] Pure-NumPy inscribed-square SNM butterfly extraction.
 - [x] Formulation and statistical validation of physics-normalized invariant ratios.
 - [x] Implementation of non-ML $3\sigma$ baseline rule detector.

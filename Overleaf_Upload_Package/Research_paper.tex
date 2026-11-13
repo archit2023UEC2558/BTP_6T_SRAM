@@ -457,7 +457,7 @@ Evaluating under these stringent conditions across all 450 held-out samples conf
 \section{Model Interpretability via Tree SHAP}
 \label{sec:shap}
 
-To verify that the invariant Random Forest model makes decisions grounded in physical semiconductor mechanisms rather than spurious statistical artifacts, we perform Shapley Additive exPlanations (SHAP) \cite{lundberg2017unified} using TreeExplainer (\texttt{scripts/run\_shap\_analysis.py}). We emphasize that while SHAP reveals the internal mathematical attribution of the decision trees, physical causality is corroborated by verifying that these attributions align with classical semiconductor equations (dynamic switching delay, subthreshold conduction, and static noise margin models). SHAP computes the marginal contribution of each invariant feature to the logarithmic odds of each defect class across all 450 authentic SPICE samples.
+To verify that the invariant Random Forest model makes decisions grounded in physical semiconductor mechanisms rather than spurious statistical artifacts, we perform Shapley Additive exPlanations (SHAP) \cite{lundberg2017unified} using TreeExplainer (\texttt{scripts/run\_shap\_analysis.py}). We emphasize that while SHAP reveals the internal mathematical attribution of the decision trees, physical causality is corroborated by verifying that these attributions align with classical semiconductor equations (dynamic switching delay, subthreshold conduction, and static noise margin models). SHAP computes the marginal contribution of each invariant feature to the logarithmic odds of each defect class across all 1,350 authentic SPICE samples.
 
 \begin{figure}[t]
 \centering

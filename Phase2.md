@@ -228,7 +228,7 @@ When writing the paper or thesis report, structure the content as follows:
 ### Section 3: PVT Simulation Framework
 - 45-corner grid: 3 process corners (TT, FF, SS) $\times$ 3 supply voltages $\times$ 5 temperatures.
 - Multi-threaded headless simulation engine with transient convergence and DC monotonicity checks.
-- Dataset construction: 450 balanced samples, 33-column schema, zero-NaN guarantee.
+- Dataset construction: 1,350 balanced samples, 34-column schema, zero-NaN guarantee.
 
 ### Section 4: Physics-Normalized Invariant Feature Engineering
 - Define the normalization equations:
