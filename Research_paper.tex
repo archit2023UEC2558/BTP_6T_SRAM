@@ -43,7 +43,7 @@ To overcome this fundamental challenge without requiring computationally prohibi
 
 The relentless scaling of complementary metal-oxide-semiconductor (CMOS) technologies into deep sub-micron nodes has propelled embedded static random-access memory (SRAM) to constitute more than 70\% to 80\% of modern System-on-Chip (SoC) dies \cite{mukhopadhyay2005modeling}. Consequently, memory yield, defect resilience, and post-silicon diagnostic fidelity represent the primary determinants of total wafer cost and field longevity in mission-critical applications spanning aerospace, automotive electronics, and ultra-low-power biomedical devices.
 
-In nanoscale dimensions, the dominant yield-detracting mechanisms have fundamentally shifted from hard, catastrophic defects (e.g., complete open circuits or direct power-to-ground shorts) to subtle parametric imperfections \cite{marchal2008sram}. These include incomplete contact/via etch (resistive opens), thin-oxide inter-layer leakage slivers (weak bridging faults), and spatial asymmetry induced by Negative/Positive Bias Temperature Instability (NBTI/PBTI) and Hot-Carrier Injection (HCI) aging ($V_{\text{th}}$ shifts). Because these non-catastrophic faults allow cells to retain and switch logical states at nominal supply voltages and room temperature, traditional algorithmic functional patterns---such as digital March C-, March B, or Mats+ tests---routinely classify them as healthy \cite{marchal2008sram}. Nevertheless, these marginalized cells exhibit drastically compromised Static Noise Margins (SNM), latent write failures under dynamic supply fluctuations, and elevated standby leakage current ($I_{\text{DDQ}}$).
+In nanoscale dimensions, the dominant yield-detracting mechanisms have fundamentally shifted from hard, catastrophic defects (e.g., complete open circuits or direct power-to-ground shorts) to subtle parametric imperfections \cite{hamdioui2003dynamic}. These include incomplete contact/via etch (resistive opens), thin-oxide inter-layer leakage slivers (weak bridging faults), and spatial asymmetry induced by Negative/Positive Bias Temperature Instability (NBTI/PBTI) and Hot-Carrier Injection (HCI) aging ($V_{\text{th}}$ shifts). Because these non-catastrophic faults allow cells to retain and switch logical states at nominal supply voltages and room temperature, traditional algorithmic functional patterns---such as digital March C-, March B, or Mats+ tests---routinely classify them as healthy \cite{hamdioui2003dynamic}. Nevertheless, these marginalized cells exhibit drastically compromised Static Noise Margins (SNM), latent write failures under dynamic supply fluctuations, and elevated standby leakage current ($I_{\text{DDQ}}$).
 
 \begin{figure}[t]
 \centering
@@ -71,7 +71,7 @@ To solve this without undertaking prohibitive, combinatorial training across all
 \label{sec:related}
 
 \subsection{Traditional SRAM Fault Testing}
-Memory testing has historically relied on algorithmic March test sequences executed via digital Built-In Self-Test (BIST) engines \cite{marchal2008sram, vandegoor1993march}. Standard algorithms (e.g., March C-, March SS) write and read deterministic bit sequences across wordlines to uncover address-decoder faults, stuck-at faults (SAF), and state-transition faults (TF) \cite{alars2005resistive, pavlov2008sram}. While highly efficient for catastrophic digital breaks, March tests exhibit near-zero coverage for latent parametric defects because intermediate voltage degradation is restored by high inverter gain prior to bitline sampling.
+Memory testing has historically relied on algorithmic March test sequences executed via digital Built-In Self-Test (BIST) engines \cite{hamdioui2003dynamic, vandegoor1993march}. Standard algorithms (e.g., March C-, March SS) write and read deterministic bit sequences across wordlines to uncover address-decoder faults, stuck-at faults (SAF), and state-transition faults (TF) \cite{vandegoor2000functional, pavlov2008sram}. While highly efficient for catastrophic digital breaks, March tests exhibit near-zero coverage for latent parametric defects because intermediate voltage degradation is restored by high inverter gain prior to bitline sampling.
 
 Dynamic fault diagnosis through $I_{\text{DDQ}}$ quiescent current monitoring was introduced to identify subthreshold leakage paths and resistive shorts \cite{mukhopadhyay2005modeling}. However, with aggressive dimensional scaling, background subthreshold leakage from millions of defect-free parallel cells obscures the localized current signature of a single defective device, drastically diminishing the defect-to-noise ratio at elevated temperatures.
 
@@ -84,9 +84,9 @@ The foundational standard for SRAM stability analysis was formulated by Seevinck
 To automate this computation, many prior works applied a coordinate transformation by rotating the axes by $45^\circ$ ($u = (V_Q - V_{Qb})/\sqrt{2}$, $v = (V_Q + V_{Qb})/\sqrt{2}$) and finding the peak separation $\Delta u / \sqrt{2}$. However, on steep rail-to-rail CMOS transition slopes where $|\mathrm{d}V_o / \mathrm{d}V_i| \gg 1$, this rotated maximum coordinate separation shortcut becomes multi-valued and overestimates the actual geometric inscribed square. In this work, we implement a direct, numerical search that guarantees exact inscribed square boundaries for both symmetric and asymmetric faulty cells.
 
 \subsection{Machine Learning in VLSI Diagnosis and Domain Shift}
-Recent research has deployed machine learning classifiers to predict SRAM yield degradation and diagnose parametric faults \cite{stratigopoulos2014ml, dasilva2018post, pedregosa2011scikit}. Typical workflows train neural networks or support vector machines on features such as write delay, bitline discharge rate, and supply currents. 
+Recent research has deployed machine learning classifiers to predict SRAM yield degradation and diagnose parametric faults \cite{makris2018special, amrouch2022machine, pedregosa2011scikit}. Typical workflows train neural networks or support vector machines on features such as write delay, bitline discharge rate, and supply currents. 
 
-However, a fundamental flaw across existing literature is the \textit{static nominal assumption}: models are trained and tested on samples partitioned randomly from an identical nominal environment ($27^\circ\text{C}, 1.0\,\text{V}$) \cite{singh2009variability}. Under real-world deployment, variations in ambient temperature ($-40^\circ\text{C}$ to $125^\circ\text{C}$) and battery or regulator droop ($0.9\,\text{V}$ to $1.1\,\text{V}$) induce severe domain shift. Because the ML decision boundaries are trained on raw absolute magnitudes, the environmental drift mimics defect signatures, causing severe out-of-distribution diagnostic collapse. This paper specifically addresses and resolves this cross-PVT domain generalization problem.
+However, a fundamental flaw across existing literature is the \textit{static nominal assumption}: models are trained and tested on samples partitioned randomly from an identical nominal environment ($27^\circ\text{C}, 1.0\,\text{V}$) \cite{mukhopadhyay2007memories}. Under real-world deployment, variations in ambient temperature ($-40^\circ\text{C}$ to $125^\circ\text{C}$) and battery or regulator droop ($0.9\,\text{V}$ to $1.1\,\text{V}$) induce severe domain shift. Because the ML decision boundaries are trained on raw absolute magnitudes, the environmental drift mimics defect signatures, causing severe out-of-distribution diagnostic collapse. This paper specifically addresses and resolves this cross-PVT domain generalization problem.
 
 % ======================================================================
 
@@ -541,37 +541,37 @@ Through an automated SPICE harness executing 9,450 dynamic simulation runs plus 
 \begin{thebibliography}{00}
 
 \bibitem{mukhopadhyay2005modeling}
-S.~Mukhopadhyay, H.~Mahmoodi-Meimand, and K.~Roy, ``Modeling and analysis of failure in sub-100-nm ultra-low-power SRAM design,'' \emph{IEEE Trans. Very Large Scale Integr. (VLSI) Syst.}, vol.~13, no.~5, pp.~586--595, May 2005.
+S.~Mukhopadhyay, H.~Mahmoodi, and K.~Roy, ``Modeling of failure probability and statistical design of SRAM array for yield enhancement in nanoscaled CMOS,'' \emph{IEEE Trans. Comput.-Aided Design Integr. Circuits Syst.}, vol.~24, no.~12, pp.~1859--1880, Dec. 2005, doi: 10.1109/TCAD.2005.852295.
 
-\bibitem{marchal2008sram}
-P.~Marchal, D.~Appello, P.~Bernardi, M.~Grosso, E.~Sanchez, and M.~Sonza~Reorda, ``SRAM dynamic fault modeling and testing in deep-submicron technologies,'' \emph{IEEE Trans. Very Large Scale Integr. (VLSI) Syst.}, vol.~16, no.~6, pp.~627--640, Jun. 2008.
+\bibitem{hamdioui2003dynamic}
+S.~Hamdioui, R.~Wadsworth, J.~Delos~Reyes, and A.~J.~van de Goor, ``Importance of dynamic faults for new SRAM technologies,'' in \emph{Proc. 8th IEEE Eur. Test Workshop (ETW)}, 2003, pp.~29--34, doi: 10.1109/ETW.2003.1231665.
 
 \bibitem{seevinck1987static}
-J.~Seevinck, F.~J.~List, and J.~Lohstroh, ``Static-noise margin analysis of MOS SRAM cells,'' \emph{IEEE J. Solid-State Circuits}, vol.~22, no.~5, pp.~748--754, Oct. 1987.
+E.~Seevinck, F.~J.~List, and J.~Lohstroh, ``Static-noise margin analysis of MOS SRAM cells,'' \emph{IEEE J. Solid-State Circuits}, vol.~SC-22, no.~5, pp.~748--754, Oct. 1987, doi: 10.1109/JSSC.1987.1052809.
 
 \bibitem{vandegoor1993march}
-A.~J.~van de Goor, ``Using march tests to test SRAMs,'' \emph{IEEE Des. Test Comput.}, vol.~10, no.~1, pp.~8--14, Mar. 1993.
+A.~J.~van de Goor, ``Using march tests to test SRAMs,'' \emph{IEEE Des. Test Comput.}, vol.~10, no.~1, pp.~8--14, Mar. 1993, doi: 10.1109/54.199799.
 
-\bibitem{alars2005resistive}
-Z.~Al-Ars and A.~J.~van de Goor, ``Impact of resistive opens on SRAM operations and test conditions,'' \emph{IEEE Trans. Comput.-Aided Design Integr. Circuits Syst.}, vol.~24, no.~6, pp.~938--953, Jun. 2005.
+\bibitem{vandegoor2000functional}
+A.~J.~van de Goor and Z.~Al-Ars, ``Functional memory faults: A formal notation and a taxonomy,'' in \emph{Proc. 18th IEEE VLSI Test Symp. (VTS)}, 2000, pp.~281--289, doi: 10.1109/VTS.2000.846700.
 
 \bibitem{pavlov2008sram}
-A.~Pavlov and M.~Sachdev, \emph{Defect-Oriented Testing for CMOS SRAMs: Flag-Oriented Test Concepts and Fault Modeling}.\hskip 1em plus 0.5em minus 0.4em\relax Boston, MA: Springer, 2008.
+A.~Pavlov and M.~Sachdev, \emph{CMOS SRAM Circuit Design and Parametric Test in Nano-Scaled Technologies: Process-Aware SRAM Design and Test}.\hskip 1em plus 0.5em minus 0.4em\relax Dordrecht, Netherlands: Springer, 2008, doi: 10.1007/978-1-4020-8363-1.
 
 \bibitem{pedregosa2011scikit}
 F.~Pedregosa, G.~Varoquaux, A.~Gramfort, V.~Michel, B.~Thirion, O.~Grisel, M.~Blondel, P.~Prettenhofer, R.~Weiss, V.~Dubourg, and J.~Vanderplas, ``Scikit-learn: Machine learning in Python,'' \emph{J. Mach. Learn. Res.}, vol.~12, pp.~2825--2830, Nov. 2011.
 
 \bibitem{lundberg2017unified}
-S.~M.~Lundberg and S.-I.~Lee, ``A unified approach to interpreting model predictions,'' in \emph{Proc. Adv. Neural Inf. Process. Syst. (NeurIPS)}, 2017, pp.~4765--4774.
+S.~M.~Lundberg and S.-I.~Lee, ``A unified approach to interpreting model predictions,'' in \emph{Proc. Adv. Neural Inf. Process. Syst. (NeurIPS)}, vol.~30, 2017, pp.~4765--4774.
 
-\bibitem{singh2009variability}
-A.~Singh, K.~Roy, and V.~De, ``Variability-tolerant SRAM design in sub-45nm CMOS technologies,'' \emph{IEEE Des. Test Comput.}, vol.~26, no.~6, pp.~42--51, Nov. 2009.
+\bibitem{mukhopadhyay2007memories}
+S.~Mukhopadhyay, Q.~Chen, and K.~Roy, ``Memories in scaled technologies: A review of process induced failures, test methodologies, and fault tolerance,'' in \emph{Proc. IEEE 10th Design and Diagnostics of Electronic Circuits and Systems (DDECS)}, 2007, pp.~1--6, doi: 10.1109/DDECS.2007.4295256.
 
-\bibitem{stratigopoulos2014ml}
-H.-G.~Stratigopoulos, ``Machine learning in analog and mixed-signal test,'' in \emph{Proc. IEEE Eur. Test Symp. (ETS)}, 2014, pp.~1--10.
+\bibitem{makris2018special}
+Y.~Makris, A.~Nahar, H.-G.~D.~Stratigopoulos, and M.~Hutner, ``Special session on machine learning: How will machine learning transform test?'' in \emph{Proc. IEEE 36th VLSI Test Symp. (VTS)}, 2018, pp.~1--9, doi: 10.1109/VTS.2018.8368667.
 
-\bibitem{dasilva2018post}
-J.~P.~da Silva, F.~Caldas, and M.~Lubaszewski, ``Machine learning for post-silicon validation and defect diagnosis: A survey,'' \emph{IEEE Trans. Comput.-Aided Design Integr. Circuits Syst.}, vol.~37, no.~11, pp.~2388--2401, Nov. 2018.
+\bibitem{amrouch2022machine}
+H.~Amrouch, K.~Chakrabarty, D.~Pfl\"uger, I.~Polian, M.~Sauer, and M.~Sonza~Reorda, ``Machine learning for test, diagnosis, post-silicon validation and yield optimization,'' in \emph{Proc. IEEE Eur. Test Symp. (ETS)}, 2022, pp.~1--10, doi: 10.1109/ETS54262.2022.9810416.
 
 \end{thebibliography}
 
