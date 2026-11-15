@@ -12,6 +12,7 @@ from sklearn.metrics import accuracy_score, balanced_accuracy_score, confusion_m
 ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(__file__).resolve().parent
 df = pd.read_csv(ROOT / 'data/sram_fault_dataset.csv')
+print('Loaded dataset', df.shape, flush=True)
 raw5 = ['i_ddq_uA','t_write_ps','dv_bl_strobe_mV','snm_hold_v','snm_read_v']
 inv8 = ['iddq_norm','t_write_norm','dv_bl_norm','snm_hold_norm','snm_read_norm','read_write_delay_ratio','snm_ratio','dv_bl_vdd_ratio']
 flags = ['hold_pass','write_pass','read_stable_pass','is_bistable']
@@ -46,11 +47,12 @@ for p in ['TT','FF','SS']:
         entry[sub] = len([f for f in files if f.is_file()])
     for sub in ['logs','ref_log']:
         failed = []
-        for file in (base/sub).glob('*.log'):
+        for file in sorted((base/sub).glob('*.log'))[:10]:
             s = file.read_text(encoding='utf-8', errors='replace').lower()
             if any(k in s for k in ['time step too small','singular matrix','simulation aborted','fatal error']):
                 failed.append(file.name)
-        entry[sub+'_fatal_marker_count'] = len(failed)
+        entry[sub+'_sampled_log_count'] = min(10, len(list((base/sub).glob('*.log'))))
+        entry[sub+'_sampled_fatal_marker_count'] = len(failed)
         entry[sub+'_fatal_examples'] = failed[:5]
     results['simulation_inventory'][p] = entry
 archive = pd.read_csv(ROOT/'data/sram_fault_dataset_45corner_analytical_archive.csv')

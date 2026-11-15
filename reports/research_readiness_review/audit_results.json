@@ -1,0 +1,326 @@
+{
+  "dataset_sha256": "a223e5df2b29cf34ef807e0d133179f6ec801bc70e9cb3bcf182aae48f82e4d5",
+  "shape": [
+    1350,
+    34
+  ],
+  "classes": {
+    "0": 45,
+    "1": 540,
+    "2": 225,
+    "3": 270,
+    "4": 270
+  },
+  "nulls": 0,
+  "duplicate_sample_ids": 0,
+  "nonconverged_by_process": {
+    "SS": 1,
+    "TT": 22
+  },
+  "sigma_baseline": {
+    "healthy_calibration_n": 1,
+    "undefined_stds": 5,
+    "predicted_faults": 0,
+    "accuracy": 0.03333333333333333,
+    "always_faulty_accuracy": 0.9666666666666667
+  },
+  "nominal_healthy_metrics": [
+    {
+      "i_ddq_uA": 0.0042,
+      "t_write_ps": 60.2,
+      "dv_bl_strobe_mV": 224.8,
+      "snm_hold_v": 0.4701,
+      "snm_read_v": 0.2637
+    }
+  ],
+  "severity_rank_extremes": {
+    "1": {
+      "1": [
+        200.0
+      ],
+      "2": [
+        500.0
+      ],
+      "3": [
+        5.0
+      ],
+      "4": [
+        5.0
+      ]
+    },
+    "6": {
+      "1": [
+        10000.0
+      ],
+      "3": [
+        30.0
+      ],
+      "4": [
+        30.0
+      ]
+    }
+  },
+  "loso_healthy_train_test_overlap": 45,
+  "thermal_trend_examples": [
+    {
+      "process_corner": "TT",
+      "temperature_c": 0.0,
+      "i_ddq_uA": 0.0048
+    },
+    {
+      "process_corner": "TT",
+      "temperature_c": 125.0,
+      "i_ddq_uA": 0.502
+    },
+    {
+      "process_corner": "TT",
+      "temperature_c": 27.0,
+      "i_ddq_uA": 0.0042
+    },
+    {
+      "process_corner": "TT",
+      "temperature_c": 75.0,
+      "i_ddq_uA": 0.8553
+    },
+    {
+      "process_corner": "TT",
+      "temperature_c": -40.0,
+      "i_ddq_uA": 0.0062
+    },
+    {
+      "process_corner": "FF",
+      "temperature_c": 0.0,
+      "i_ddq_uA": 0.0121
+    },
+    {
+      "process_corner": "FF",
+      "temperature_c": 125.0,
+      "i_ddq_uA": 0.1603
+    },
+    {
+      "process_corner": "FF",
+      "temperature_c": 27.0,
+      "i_ddq_uA": 1.1247
+    },
+    {
+      "process_corner": "FF",
+      "temperature_c": 75.0,
+      "i_ddq_uA": 0.0265
+    },
+    {
+      "process_corner": "FF",
+      "temperature_c": -40.0,
+      "i_ddq_uA": 0.0148
+    },
+    {
+      "process_corner": "SS",
+      "temperature_c": 0.0,
+      "i_ddq_uA": 0.0007
+    },
+    {
+      "process_corner": "SS",
+      "temperature_c": 125.0,
+      "i_ddq_uA": 0.0675
+    },
+    {
+      "process_corner": "SS",
+      "temperature_c": 27.0,
+      "i_ddq_uA": 0.005
+    },
+    {
+      "process_corner": "SS",
+      "temperature_c": 75.0,
+      "i_ddq_uA": 0.47
+    },
+    {
+      "process_corner": "SS",
+      "temperature_c": -40.0,
+      "i_ddq_uA": 0.0225
+    }
+  ],
+  "undefined_citations": [],
+  "missing_root_figures": [],
+  "simulation_inventory": {
+    "TT": {
+      "logs": 0,
+      "ref_log": 10,
+      "raw": 0,
+      "ref_raw": 54,
+      "testbenches": 1,
+      "logs_sampled_log_count": 0,
+      "logs_sampled_fatal_marker_count": 0,
+      "logs_fatal_examples": [],
+      "ref_log_sampled_log_count": 10,
+      "ref_log_sampled_fatal_marker_count": 0,
+      "ref_log_fatal_examples": []
+    },
+    "FF": {
+      "logs": 3150,
+      "ref_log": 105,
+      "raw": 6300,
+      "ref_raw": 210,
+      "testbenches": 3150,
+      "logs_sampled_log_count": 10,
+      "logs_sampled_fatal_marker_count": 0,
+      "logs_fatal_examples": [],
+      "ref_log_sampled_log_count": 10,
+      "ref_log_sampled_fatal_marker_count": 0,
+      "ref_log_fatal_examples": []
+    },
+    "SS": {
+      "logs": 3150,
+      "ref_log": 105,
+      "raw": 6300,
+      "ref_raw": 210,
+      "testbenches": 3150,
+      "logs_sampled_log_count": 10,
+      "logs_sampled_fatal_marker_count": 0,
+      "logs_fatal_examples": [],
+      "ref_log_sampled_log_count": 10,
+      "ref_log_sampled_fatal_marker_count": 0,
+      "ref_log_fatal_examples": []
+    }
+  },
+  "analytical_archive": {
+    "same_shape": true,
+    "equal_numeric_cells": 9125,
+    "numeric_cells": 37800
+  },
+  "loco": {
+    "raw12": {
+      "n": 1350,
+      "accuracy": 0.7511111111111111,
+      "balanced_accuracy": 0.6514814814814816,
+      "macro_f1": 0.6286544080472909,
+      "corner_min": 0.5,
+      "perfect_corners": 0,
+      "confusion_matrix": [
+        [
+          0,
+          17,
+          0,
+          17,
+          11
+        ],
+        [
+          0,
+          359,
+          0,
+          81,
+          100
+        ],
+        [
+          0,
+          0,
+          225,
+          0,
+          0
+        ],
+        [
+          0,
+          18,
+          0,
+          244,
+          8
+        ],
+        [
+          0,
+          73,
+          0,
+          11,
+          186
+        ]
+      ]
+    },
+    "invariant12": {
+      "n": 1350,
+      "accuracy": 0.9933333333333333,
+      "balanced_accuracy": 0.9903703703703703,
+      "macro_f1": 0.9907345335014046,
+      "corner_min": 0.9,
+      "perfect_corners": 39,
+      "confusion_matrix": [
+        [
+          44,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          538,
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          225,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          268,
+          2
+        ],
+        [
+          0,
+          3,
+          0,
+          1,
+          266
+        ]
+      ]
+    },
+    "invariant12_converged": {
+      "n": 1327,
+      "accuracy": 0.9969856819894499,
+      "balanced_accuracy": 0.9969952332311882,
+      "macro_f1": 0.9975522936967322,
+      "corner_min": 0.9,
+      "perfect_corners": 43,
+      "confusion_matrix": [
+        [
+          43,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          530,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          223,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          263,
+          1
+        ],
+        [
+          0,
+          3,
+          0,
+          0,
+          264
+        ]
+      ]
+    }
+  }
+}
