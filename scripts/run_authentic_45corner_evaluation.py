@@ -480,22 +480,41 @@ def main():
     print("9. REGENERATING FIGURES 1, 2, AND 3")
     print("=" * 50)
 
-    # Fig 1: Raw vs Invariant CV comparison
-    cv_raw = [df.groupby('corner_id')[col].mean().std() / df[col].mean() * 100 for col in raw_5]
-    cv_inv = [df.groupby('corner_id')[col].mean().std() / df[col].mean() * 100 for col in inv_8[:5]]
+    # Fig 1: Raw vs Invariant CV comparison (Dispersion on Healthy Cells across 45 corners)
+    df_h = df[df['fault_class'] == 0]
+    cv_raw = [df_h[col].std() / df_h[col].mean() * 100 for col in raw_5]
+    cv_inv = [df_h[col].std() / df_h[col].mean() * 100 for col in inv_8[:5]]
 
-    fig1, ax1 = plt.subplots(figsize=(7, 4.5))
+    # Clean subset for IDDQ annotation
+    df_clean = df_h[df_h['converged'] == True]
+    cv_inv_clean = [df_clean[col].std() / df_clean[col].mean() * 100 for col in inv_8[:5]]
+
+    fig1, ax1 = plt.subplots(figsize=(8, 5))
     x = np.arange(len(raw_5))
     w = 0.35
-    ax1.bar(x - w/2, cv_raw, w, label='Raw Dynamic Features', color='#d62728', alpha=0.85)
-    ax1.bar(x + w/2, cv_inv, w, label='Physics-Normalized Invariants', color='#2ca02c', alpha=0.85)
+    rects1 = ax1.bar(x - w/2, cv_raw, w, label='Raw Dynamic Features (Healthy)', color='#d62728', alpha=0.88, edgecolor='black', linewidth=0.8)
+    rects2 = ax1.bar(x + w/2, cv_inv, w, label='Physics-Normalized Invariants (Healthy)', color='#2ca02c', alpha=0.88, edgecolor='black', linewidth=0.8)
+
+    # Annotate bar values
+    for rect in rects1:
+        h = rect.get_height()
+        ax1.annotate(f'{h:.1f}%', xy=(rect.get_x() + rect.get_width() / 2, h),
+                     xytext=(0, 4), textcoords='offset points',
+                     ha='center', va='bottom', fontsize=9.5, fontweight='bold', color='#a01e1e')
+    for idx, rect in enumerate(rects2):
+        h = rect.get_height()
+        txt = f'{h:.1f}%\n(0.0%*)' if idx == 0 else (f'{h:.1f}%' if h > 0 else '0.0%')
+        ax1.annotate(txt, xy=(rect.get_x() + rect.get_width() / 2, max(h, 1)),
+                     xytext=(0, 4), textcoords='offset points',
+                     ha='center', va='bottom', fontsize=9.5, fontweight='bold', color='#1b6e1b')
+
     ax1.set_xticks(x)
-    ax1.set_xticklabels(['$I_{DDQ}$', '$t_{write}$', '$\\Delta V_{BL}$', '$\\text{SNM}_{H}$', '$\\text{SNM}_{R}$'], fontsize=11)
-    ax1.set_ylabel('Coefficient of Variation (CV) across PVT [%]', fontsize=11)
-    ax1.set_yscale('log')
-    ax1.set_title(f'Cross-PVT Dispersion Suppression ({n_corners} Corners, {n_samples} Samples)', fontsize=11)
-    ax1.legend(frameon=True)
-    ax1.grid(True, linestyle='--', alpha=0.5, axis='y')
+    ax1.set_xticklabels(['$I_{\\mathrm{DDQ}}$', '$t_{\\mathrm{write}}$', '$\\Delta V_{\\mathrm{BL}}$', '$\\mathrm{SNM}_{\\mathrm{Hold}}$', '$\\mathrm{SNM}_{\\mathrm{Read}}$'], fontsize=11, fontweight='bold')
+    ax1.set_ylabel('Coefficient of Variation (CV) across 45 PVT Corners [%]', fontsize=11, fontweight='bold')
+    ax1.set_title(f'Cross-PVT Dispersion Suppression (Healthy Cells, {n_corners} Corners)', fontsize=12, fontweight='bold', pad=12)
+    ax1.set_ylim(0, 230)
+    ax1.legend(frameon=True, fontsize=10, loc='upper right')
+    ax1.grid(True, linestyle='--', alpha=0.4, axis='y')
     save_fig_all(fig1, 'fig1_feature_dispersion_comparison.png')
     plt.close(fig1)
 
