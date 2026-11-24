@@ -53,9 +53,9 @@
   - **Pull-up Ratio (PR, $\gamma$):** $\gamma = \frac{(W/L)_{\text{pullup}}}{(W/L)_{\text{access}}} = \frac{2.0}{3.0} = 0.667$ (Specification: $<1.0$ for write flip capability).
 
 ### Operational Modes & Verified Baselines (at Nominal $27^\circ\text{C}, 1.0\,\text{V}$)
-1. **Hold Mode ($WL=0\,\text{V}$):** Latched state is stable. Measured $V(Q)=1.0000\,\text{V}, V(Q_b)=0.0000\,\text{V}$. Quiescent leakage $I_{\text{DDQ}} = 14.2\,\text{pA}$. Hold Static Noise Margin ($\text{HSNM}$) $= 470.1\,\text{mV}$ (Spec: $>200\,\text{mV}$).
-2. **Read Mode ($BL = \overline{BL} = 1.0\,\text{V}, WL=1.0\,\text{V}$):** Non-destructive read. Minimum internal node voltage during read $V(Q)_{\min} = 0.9845\,\text{V} > 0.5\,\text{V}$. Voltage bump on '0' node $V(Q_b)_{\text{bump}} = 0.1279\,\text{V} < 0.5\,\text{V}$. Read SNM ($\text{RSNM}$) $= 263.7\,\text{mV}$. Bitline differential $\Delta V_{\text{BL}} = 235.4\,\text{mV}$.
-3. **Write Mode ($BL=0\,\text{V}, \overline{BL}=1.0\,\text{V}, WL=1.0\,\text{V}$):** Successful latch flip. Switching delay $t_{\text{write}} = 62.2\,\text{ps}$. Full post-write retention after $WL$ returns to $0\,\text{V}$.
+1. **Hold Mode ($WL=0\,\text{V}$):** Latched state is stable. Measured $V(Q)=1.0000\,\text{V}, V(Q_b)=0.0000\,\text{V}$. Quiescent leakage $I_{\text{DDQ}} = 4.2\,\text{nA}$ ($0.0042\,\mu\text{A}$). Hold Static Noise Margin ($\text{HSNM}$) $= 470.1\,\text{mV}$ (Spec: $>200\,\text{mV}$).
+2. **Read Mode ($BL = \overline{BL} = 1.0\,\text{V}, WL=1.0\,\text{V}$):** Non-destructive read. Minimum internal node voltage during read $V(Q)_{\min} = 0.9845\,\text{V} > 0.5\,\text{V}$. Stored nominal maximum read bump $V(Q_b)_{\text{bump}} = 125.0\,\text{mV}$ ($0.1250\,\text{V} < 0.5\,\text{V}$). Read SNM ($\text{RSNM}$) $= 263.7\,\text{mV}$. Bitline differential $\Delta V_{\text{BL}} = 224.8\,\text{mV}$ (at fixed $2.15\,\text{ns}$ strobe; sense delay $t_{\text{sense}} = 60.0\,\text{ps}$).
+3. **Write Mode ($BL=0\,\text{V}, \overline{BL}=1.0\,\text{V}, WL=1.0\,\text{V}$):** Successful latch flip. Switching delay $t_{\text{write}} = 60.2\,\text{ps}$ (mean write delay across write 1/0). Full post-write retention after $WL$ returns to $0\,\text{V}$.
 
 ---
 
@@ -82,7 +82,7 @@ Faults are programmatically injected into SPICE netlists via pure text replaceme
   - Voltages: $0.9\,\text{V}, 1.0\,\text{V}, 1.1\,\text{V}$
   - Temperatures: $-40^\circ\text{C}, 0^\circ\text{C}, 27^\circ\text{C}, 75^\circ\text{C}, 125^\circ\text{C}$
   - Process: Typical-Typical (TT), Fast-Fast (FF), Slow-Slow (SS)
-- **Dataset Scale:** 450 total multi-corner simulation runs ($30$ samples per corner $\times 15$ corners).
+- **Dataset Scale:** 1,350 total multi-corner simulation runs ($30$ samples per corner $\times 45$ corners; note: 450 rows across 15 corners was the initial mid-semester milestone).
 - **Data Integrity:** Exactly 1,350 rows in `data/sram_fault_dataset.csv`, **0 missing values, 0 NaNs, 0 infinite values**. 295 simulator convergence warning flags audited and logged.
 
 ---
@@ -124,15 +124,15 @@ Normalized relative to a concurrent on-die healthy reference cell simulated at t
 1. **Protocol 1 (Standard Split, Nominal Corner $27^\circ\text{C}, 1.0\,\text{V}$):** 80/20 train/test split. Automated assertion confirms zero `sample_id` leakage.
 2. **Protocol 2 (Leave-One-Corner-Out / LOCO):** Train on 44 corners, evaluate on the 45th held-out unseen corner. Repeated for all 45 corners.
 
-### Mid-Semester Performance Benchmark Table
+### Performance Benchmark Table
 
 | Diagnostic Model | Feature Representation | Protocol 1: Nominal Corner ($27^\circ\text{C}, 1.0\text{V}$) | Protocol 2: Cross-PVT LOCO (45 Corners) | Technical Behavior & Notes |
 |---|---|:---:|:---:|---|
-| **Non-ML Baseline** ($3\sigma$ Threshold Detector) | Raw Absolute Metrics | $93.3\%$ (6.7% FP) | **$25.78\%$** | Fails completely under thermal drift; static thresholds cannot adapt. |
-| **Random Forest** (Classical ML) | Raw Features | **$100.0\%$** | **$82.67\%$** | Suffers severe OOD domain shift (drops to $50.0\%$ on extreme corners). |
-| **Random Forest + Proposed Invariants** | **Physics-Normalized Ratios** | **$100.0\%$** | **$98.89\%$** | **$+16.22\%$ Generalization Gain**; robust across all 45 corners. |
+| **Non-ML Baseline** ($3\sigma$ Threshold Detector) | Raw Absolute Metrics | $93.3\%$ (6.7% FP) | **$3.33\% \pm 4.21\%$** | Fails completely under thermal/process drift; static thresholds cannot adapt. |
+| **Random Forest** (Classical ML) | Raw Features | **$100.0\%$** | **$75.11\% \pm 14.15\%$** | Suffers severe OOD domain shift (floor at $50.00\%$ on extreme corners). |
+| **Random Forest + Proposed Invariants** | **Physics-Normalized Ratios** | **$100.0\%$** | **$99.33\% \pm 1.94\%$** | **$+24.22\,\text{pp}$ Generalization Gain**; worst-corner floor lifted to **$90.00\%$** (39/45 perfect corners). |
 
-*(Note: On clean simulation runs without transient integration timeouts, the invariant Random Forest achieves **100.0% accuracy across all 15 held-out PVT corners**).*
+*(Note: On the 1,327 converged rows excluding 23 nonconverged rows before splitting, normalized Random Forest reaches **99.70% LOCO accuracy** with 43 of 45 corners perfect; preliminary mid-sem 15-corner audit achieved 98.89% on all rows and 100.0% on clean 428 rows).*
 
 ---
 

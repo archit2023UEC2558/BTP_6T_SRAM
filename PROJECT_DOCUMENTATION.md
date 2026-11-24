@@ -265,18 +265,20 @@ Each row in [`data/sram_fault_dataset.csv`](file:///c:/Users/AYUSH/Desktop/btp-s
 The generated dataset was validated using [`scripts/verify_dataset_physics.py`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/scripts/verify_dataset_physics.py):
 
 ### 7.1 Semiconductor Thermal Scaling ($I_{\text{ddq}}$ vs $T$)
-Subthreshold leakage scales exponentially with temperature ($I_{\text{sub}} \propto T^2 e^{-qV_{th}/kT}$):
-- $-40^\circ\text{C}$: $0.0188\,\mu\text{A}$
-- $0^\circ\text{C}$: $0.0044\,\mu\text{A}$
-- $27^\circ\text{C}$ (Nominal): $0.0140\,\mu\text{A}$ ($14\,\text{nA}$)
-- $75^\circ\text{C}$: $0.8388\,\mu\text{A}$
-- $125^\circ\text{C}$: $1.6202\,\mu\text{A}$ ($>115\times$ increase over nominal)
+Subthreshold leakage scales with temperature (sampled at nominal TT, $V_{DD} = 1.0\,\text{V}$):
+- $-40^\circ\text{C}$: $0.0062\,\mu\text{A}$ ($6.2\,\text{nA}$)
+- $0^\circ\text{C}$: $0.0048\,\mu\text{A}$ ($4.8\,\text{nA}$)
+- $27^\circ\text{C}$ (Nominal): $0.0042\,\mu\text{A}$ ($4.2\,\text{nA}$)
+- $75^\circ\text{C}$: $0.8553\,\mu\text{A}$ ($855.3\,\text{nA}$)
+- $125^\circ\text{C}$: $0.5020\,\mu\text{A}$ ($502.0\,\text{nA}$, $119.5\times$ increase over nominal)
+
+*(Note: As documented in the paper's limitations, sampled standby current trajectories exhibit non-monotonicities across certain operating settings in uncalibrated Level-1 SPICE decks; values reflect extracted transient current at strobe rather than an idealized DC diode law).*
 
 ### 7.2 Gate Overdrive Scaling ($t_{\text{write}}$ vs $V_{DD}$)
-Drive current scales with overdrive ($V_{GS} - V_{th}$):
-- $0.9\,\text{V}$: $70.58\,\text{ps}$ (slowest switching)
-- $1.0\,\text{V}$: $62.18\,\text{ps}$ (nominal)
-- $1.1\,\text{V}$: $52.14\,\text{ps}$ (fastest switching)
+Drive current scales with overdrive ($V_{GS} - V_{th}$ at TT, $27^\circ\text{C}$):
+- $0.9\,\text{V}$: $71.8\,\text{ps}$ (slowest switching)
+- $1.0\,\text{V}$: $60.2\,\text{ps}$ (nominal)
+- $1.1\,\text{V}$: $52.8\,\text{ps}$ (fastest switching)
 
 ### 7.3 Fault Monotonicity
 - **Class 1 (Resistive Open):** $t_{\text{write}}$ increases monotonically from $61.57\,\text{ps}$ ($200\,\Omega$) to $105.99\,\text{ps}$ ($10\,\text{k}\Omega$).
@@ -285,11 +287,15 @@ Drive current scales with overdrive ($V_{GS} - V_{th}$):
 - **Class 4 ($V_{th}$ Drift Access):** Read sense delay $t_{\text{sense}}$ increases from $64.52\,\text{ps}$ to $87.85\,\text{ps}$; Hold SNM remains strictly invariant ($0.441\,\text{V}$), cleanly decoupling Class 3 from Class 4.
 
 ### 7.4 Dispersion Reduction Across 45 PVT Corners
-| Feature | Raw CV ($\sigma/\mu$) | Normalized Invariant CV | Dispersion Reduction |
-|---|---|---|---|
-| **Hold SNM** | $11.6\%$ | **$0.0\%$** | **$100\%$ eliminated** |
-| **Bitline $\Delta V_{\text{BL}}$** | $30.8\%$ | **$0.0\%$** | **$100\%$ eliminated** |
-| **Write Delay $t_{\text{write}}$** | $13.6\%$ | **$5.8\%$** | **$57.4\%$ reduction** |
+The impact of physics-based normalization against a co-located healthy reference cell across all 45 PVT corners (from Table II of the research paper):
+
+| Feature | Healthy All (45 Corners)<br>Raw CV $\to$ Normalized CV | Healthy Converged (43 Corners)<br>Raw CV $\to$ Normalized CV | 5k$\Omega$ Open $M_5$ (43 Corners)<br>Raw CV $\to$ Normalized CV | 5k$\Omega$ Open $M_6$ (41 Corners)<br>Raw CV $\to$ Normalized CV |
+|---|:---:|:---:|:---:|:---:|
+| **Hold SNM ($\text{SNM}_{\text{hold}}$)** | $12.40\% \to \mathbf{0.00\%}$ | $12.31\% \to \mathbf{0.00\%}$ | $12.49\% \to \mathbf{0.00\%}$ | $12.62\% \to \mathbf{0.00\%}$ |
+| **Bitline Swing ($\Delta V_{\text{BL}}$)** | $38.50\% \to \mathbf{0.00\%}$ | $38.83\% \to \mathbf{0.00\%}$ | $36.38\% \to \mathbf{2.28\%}$ | $37.01\% \to \mathbf{2.30\%}$ |
+| **Write Delay ($t_{\text{write}}$)** | $18.30\% \to \mathbf{3.49\%}$ | $18.53\% \to \mathbf{0.00\%}$ | $15.05\% \to \mathbf{3.66\%}$ | $17.28\% \to \mathbf{2.50\%}$ |
+| **Standby Current ($I_{\text{DDQ}}$)** | $197.59\% \to \mathbf{111.80\%}$ | $139.95\% \to \mathbf{0.00\%}$ | $148.33\% \to \mathbf{0.00\%}$ | $142.69\% \to \mathbf{0.00\%}$ |
+| **Read SNM ($\text{SNM}_{\text{read}}$)** | $22.10\% \to \mathbf{15.25\%}$ | $22.26\% \to \mathbf{15.61\%}$ | $22.54\% \to \mathbf{15.65\%}$ | $22.74\% \to \mathbf{16.04\%}$ |
 
 ---
 
@@ -309,32 +315,40 @@ Stratified 80/20 train/test split on nominal data with automated assertion verif
 Iteratively trains on 44 corners ($1,320$ samples) and tests on 1 held-out corner ($30$ samples) across all 45 PVT corners (1,350 evaluations):
 
 #### Master Empirical Results Table ([`reports/final_results/loco_summary.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/final_results/loco_summary.csv))
-| Model Architecture | Raw Features Accuracy | Invariant Features Accuracy | Generalization Gain | Worst-Corner Floor (Min) |
+*(Corresponds to Table III in the research paper; standard deviations reflect population standard deviation with $\mathrm{ddof}=0$)*
+
+| Model Architecture | Raw Features Accuracy<br>(Mean $\pm$ Std) [Min, Max] | Normalized Feature Set<br>(Mean $\pm$ Std) [Min, Max] | Generalization<br>Gain (pp) | Worst-Corner Floor<br>(Raw $\to$ Normalized) |
 |---|:---:|:---:|:---:|:---:|
-| **Random Forest** | $75.11\% \pm 11.23\%$ | **$99.33\% \pm 2.05\%$** | **$+24.22\%$** | $50.00\% \to \mathbf{90.00\%}$ *(39/45 perfect corners)* |
-| **HistGradientBoosting** | $77.56\% \pm 12.87\%$ | **$99.41\% \pm 2.12\%$** | **$+21.85\%$** | $40.00\% \to \mathbf{86.67\%}$ *(40/45 perfect corners)* |
-| **Decision Tree** | $73.56\% \pm 13.41\%$ | **$98.44\% \pm 3.10\%$** | **$+24.88\%$** | $36.67\% \to \mathbf{86.67\%}$ |
-| **Logistic Regression** | $80.59\% \pm 10.95\%$ | **$86.89\% \pm 8.74\%$** | **$+6.30\%$** | $46.67\% \to \mathbf{63.33\%}$ |
+| **Random Forest** | $75.11\% \pm 14.15\%$ [50.0%, 96.7%] | **$99.33\% \pm 1.94\%$** [**90.0%**, 100.0%] | **$+24.22\,\text{pp}$** | $50.00\% \to \mathbf{90.00\%}$ *(39/45 perfect corners)* |
+| **HistGradientBoosting** | $77.56\% \pm 15.21\%$ [40.0%, 100.0%] | **$99.41\% \pm 2.14\%$** [**86.7%**, 100.0%] | **$+21.85\,\text{pp}$** | $40.00\% \to \mathbf{86.67\%}$ *(40/45 perfect corners)* |
+| **Decision Tree** | $73.56\% \pm 12.42\%$ [36.7%, 96.7%] | **$98.44\% \pm 5.60\%$** [**63.3%**, 100.0%] | **$+24.89\,\text{pp}$** | $36.67\% \to \mathbf{63.33\%}$ |
+| **Logistic Regression** | $80.59\% \pm 9.14\%$ [60.0%, 96.7%] | **$86.89\% \pm 7.08\%$** [**60.0%**, 96.7%] | **$+6.30\,\text{pp}$** | $60.00\% \to \mathbf{60.00\%}$ |
 | **Non-ML Baseline ($3\sigma$)** | $3.33\% \pm 4.21\%$ | $3.33\% \pm 4.21\%$ | Control | Rule-based failure |
 
 - **Ablation Model B' (Parametric-only, 8 Ratios, No Functional Pass/Fail Flags):** Achieves **$99.48\%$** LOCO accuracy and a **$90.00\%$** worst-case corner floor, confirming that high diagnostic accuracy is driven entirely by continuous physical degradation signatures rather than binary functional flags.
-- **Leave-One-Severity-Out (LOSO) Generalization:**
-  - Mean interpolation across interior severities ($S_2$–$S_5$): **$99.54\%$**
-  - Incipient fault extrapolation ($S_1$ holdout): **$90.74\%$**
-  - Severe fault extrapolation ($S_6$ holdout): **$100.00\%$**
+- **Leave-One-Severity-Out (LOSO) Generalization on Faulty Observations (Table V in paper, 225 fault rows per rank):**
+  - Incipient boundary faults ($S_1$ holdout): **$88.89\%$** ($200/225$ correct; 21 of the 25 misclassifications occur on the weakest $200\,\Omega$ opens which score $76.67\%$; the earlier reported $90.74\%$ included the 45 healthy rows in the test set).
+  - Interior faults ($S_2$ holdout): **$99.11\%$**
+  - Interior faults ($S_3$ holdout): **$99.11\%$**
+  - Interior faults ($S_4$ holdout): **$99.56\%$**
+  - Severe boundary faults ($S_5$ holdout): **$100.00\%$**
+  - Severe boundary faults ($S_6$ holdout, 180 rows): **$100.00\%$**
 - **Joint PVT + Severity Holdout:** Evaluated on 450 unseen corner-severity combinations, achieving **$99.11\%$** accuracy.
 
 #### Physical Rationale for the Generalization Collapse on Raw Features:
 Under extreme corners (e.g. low supply $0.9\,\text{V}$ and high temperature $125^\circ\text{C}$), raw feature accuracy drops to **$36.7\%$–$50.0\%$** because:
 1. Low supply voltage ($0.9\,\text{V}$) reduces gate overdrive and slows down healthy cell switching, causing raw classifiers to misclassify benign healthy cells as resistive opens.
-2. High temperature ($125^\circ\text{C}$) raises subthreshold leakage by $>115\times$, causing raw classifiers to misclassify healthy cells as bridging faults.
+2. High temperature ($125^\circ\text{C}$) raises subthreshold leakage, causing raw classifiers to misclassify healthy cells as bridging faults.
 3. Physics-normalized invariant features cancel out these common-mode supply, thermal, and process variations, maintaining **$99.33\%$ to $99.41\%$ accuracy across all 45 corners**.
 
 ---
 
 ### 8.3 Data Policy Sensitivity Analysis ([`reports/audit/`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/audit/))
-In [`reports/audit/final_comparison_table.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/audit/final_comparison_table.csv), the team analyzed the impact of removing the 22 simulation rows that experienced SPICE transient timeouts:
-- **`clean_main_428` (428 rows):**
+In [`reports/audit/final_comparison_table.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/audit/final_comparison_table.csv) and Section 10 of the research paper:
+- **Full 45-Corner Converged Rows ($N=1,327$, excluding 23 nonconverged rows before splitting):**
+  - **Random Forest Raw:** **$75.28\%$**
+  - **Random Forest Invariant:** **$99.70\%$** (43 of 45 corners achieve 100% accuracy, only 4 classification errors total across all 1,327 samples).
+- **Preliminary Mid-Semester 15-Corner Audit (`clean_main_428`, 428 rows excluding 22 transient timeouts from 450 initial rows):**
   - **Random Forest:** Reaches **$100.0\%$ accuracy in every single held-out corner** ($1.000 \pm 0.000$).
   - **HistGradientBoosting:** Reaches **$99.54\% \pm 1.78\%$**.
   - **Linear SVM:** Reaches **$88.91\% \pm 8.83\%$**.
@@ -343,14 +357,15 @@ In [`reports/audit/final_comparison_table.csv`](file:///c:/Users/AYUSH/Desktop/b
 ---
 
 ### 8.4 Explainability & Feature Attribution via TreeExplainer SHAP
-To interpret the decision boundaries of the best invariant-feature Random Forest model, we computed SHAP (SHapley Additive exPlanations) values across all 1,350 samples and invariant features ([`scripts/run_shap_analysis.py`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/scripts/run_shap_analysis.py)):
+To interpret the decision boundaries of the best invariant-feature Random Forest model, we computed SHAP (SHapley Additive exPlanations) values across all 1,350 samples and invariant features (Table VI in the research paper):
 
 #### Global Feature Importance ([`reports/final_results/shap_feature_importance.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/final_results/shap_feature_importance.csv)):
-1. **`t_write_norm` (Mean $|SHAP| = 0.0789$):** Primary discriminator for writeability faults, separating Class 1 (Resistive Opens) and Class 3 (Storage Inverter $V_{th}$ Drift).
-2. **`dv_bl_norm` (Mean $|SHAP| = 0.0776$):** Primary driver for read access degradation (Class 1 and Class 4), as bitline discharge is heavily governed by access pass-gate impedance.
-3. **`snm_read_norm` (Mean $|SHAP| = 0.0567$):** Strong discriminator for access transistor degradation and read stability.
-4. **`iddq_norm` (Mean $|SHAP| = 0.0315$):** Decisively isolates Class 2 (Bridging Shorts) by capturing quiescent leakage anomalies.
-5. **`snm_hold_norm` (Mean $|SHAP| = 0.0289$):** Decouples internal storage inverter drift from access transistor drift.
+1. **`t_write_norm` (Mean $|SHAP| = 0.0789$):** Primary discriminator for writeability faults, separating Class 1 (Resistive Opens, $0.0988$) and Class 3 (Storage Inverter $V_{th}$ Drift, $0.1078$).
+2. **`dv_bl_norm` (Mean $|SHAP| = 0.0776$):** Primary driver for read access degradation (Class 1, $0.1414$ and Class 4, $0.0906$), as bitline discharge is heavily governed by access pass-gate impedance.
+3. **`snm_read_norm` (Mean $|SHAP| = 0.0567$):** Strong discriminator for access transistor degradation and read stability (Class 1, $0.1245$ and Class 4, $0.1159$).
+4. **`dv_bl_vdd_ratio` (Mean $|SHAP| = 0.0269$):** Dimensionless ratio of bitline swing to supply voltage; key contributor to Class 2 (Bridging, $0.0666$).
+5. **`snm_hold_norm` (Mean $|SHAP| = 0.0263$):** Decouples internal storage inverter drift (Class 3, $0.0650$) from access transistor drift (Class 4, $0.0341$).
+6. **`iddq_norm` (Mean $|SHAP| = 0.0249$):** Describes sampled supply-current signatures. Attribution is largest for **Class 3 ($V_{th}$ Storage Pair Drift at $0.0549$)**, while Class 2 (Bridging Shorts) is dominated by write timing ($0.0750$) and bitline collapse (`dv_bl_vdd_ratio` $0.0666$) rather than IDDQ ($0.0080$).
 
 ---
 

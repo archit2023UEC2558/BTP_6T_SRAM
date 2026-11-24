@@ -25,9 +25,9 @@
 ### Checkpoint 1: Healthy Cell Behavior
 - **Status:** **PASS**
 - **hold_vdd:** `1.0`
-- **hold_retention:** `PASS (V(Q)=1.0V, V(Qb)=0.0V)`
-- **read_stability:** `PASS (non-destructive, dv_bl = 235.4 mV)`
-- **write_flip:** `PASS (symmetric write 1/0, t_write = 62.2 ps)`
+- **hold_retention:** `PASS (V(Q)=1.0V, V(Qb)=0.0V, Iddq=4.2nA)`
+- **read_stability:** `PASS (non-destructive, dv_bl = 224.8 mV at 2.15 ns strobe; t_sense = 60.0 ps)`
+- **write_flip:** `PASS (symmetric write 1/0, t_write = 60.2 ps)`
 
 ### Checkpoint 2: SNM Script Accuracy
 - **Status:** **PASS**
@@ -49,7 +49,7 @@
 
 ### Checkpoint 5: Dataset Integrity
 - **Status:** **PASS**
-- **total_dataset_rows:** `450`
+- **total_dataset_rows:** `1,350` across 45 corners (`450` in initial 15-corner milestone)
 - **null_values:** `0`
 - **infinite_values:** `0`
 - **logged_convergence_flags:** `295`
@@ -65,22 +65,16 @@
 
 ### Checkpoint 7: Result Consistency
 - **Status:** **PASS**
-- **RandomForest:**
-  * raw_loco_mean: `82.67%`
-  * invariant_loco_mean: `98.89%`
-  * gain: `+16.22%`
-- **HistGradientBoosting:**
-  * raw_loco_mean: `82.89%`
-  * invariant_loco_mean: `98.89%`
-  * gain: `+16.00%`
-- **LinearSVM:**
-  * raw_loco_mean: `72.67%`
-  * invariant_loco_mean: `84.22%`
-  * gain: `+11.55%`
-- **LogisticRegression:**
-  * raw_loco_mean: `76.89%`
-  * invariant_loco_mean: `83.11%`
-  * gain: `+6.22%`
+- **Authoritative 45-Corner LOCO Results (Table III of Research Paper):**
+  - **Random Forest:** Raw $75.11\% \pm 14.15\%$, Invariant **$99.33\% \pm 1.94\%$**, Gain **$+24.22\,\text{pp}$** (Worst floor: $50.00\% \to 90.00\%$; $99.70\%$ on converged rows)
+  - **HistGradientBoosting:** Raw $77.56\% \pm 15.21\%$, Invariant **$99.41\% \pm 2.14\%$**, Gain **$+21.85\,\text{pp}$** (Worst floor: $40.00\% \to 86.67\%$)
+  - **Decision Tree:** Raw $73.56\% \pm 12.42\%$, Invariant **$98.44\% \pm 5.60\%$**, Gain **$+24.89\,\text{pp}$**
+  - **Logistic Regression:** Raw $80.59\% \pm 9.14\%$, Invariant **$86.89\% \pm 7.08\%$**, Gain **$+6.30\,\text{pp}$**
+- **Preliminary 15-Corner Benchmark Milestone:**
+  - RandomForest: raw 82.67%, invariant 98.89% (+16.22%)
+  - HistGradientBoosting: raw 82.89%, invariant 98.89% (+16.00%)
+  - LinearSVM: raw 72.67%, invariant 84.22% (+11.55%)
+  - LogisticRegression: raw 76.89%, invariant 83.11% (+6.22%)
 
 ---
 

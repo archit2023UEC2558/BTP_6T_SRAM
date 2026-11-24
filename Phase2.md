@@ -195,18 +195,25 @@ To generate SHAP summary and waterfall plots for the thesis:
 Collaborators can verify their training outputs against these expected benchmarks:
 
 ### 4.1 Feature Dispersion (Healthy Cells across 45 Corners)
-| Feature | Raw Mean $\pm$ Std | Raw CV (%) | Invariant Mean $\pm$ Std | Invariant CV (%) | Spread Reduction |
-|---|---|---|---|---|---|
-| **Hold SNM** | $0.441 \pm 0.051\,\text{V}$ | $11.6\%$ | $1.000 \pm 0.000$ | **$0.0\%$** | **$100\%$ eliminated** |
-| **Bitline $\Delta V_{\text{BL}}$** | $235.4 \pm 72.4\,\text{mV}$ | $30.8\%$ | $1.000 \pm 0.000$ | **$0.0\%$** | **$100\%$ eliminated** |
-| **Write Delay $t_{\text{write}}$** | $61.6 \pm 8.4\,\text{ps}$ | $13.6\%$ | $1.016 \pm 0.059$ | **$5.8\%$** | **$57.4\%$ reduction** |
-| **Standby Current $I_{\text{ddq}}$** | $0.50 \pm 0.97\,\mu\text{A}$ | $194.1\%$ | $1.60 \pm 2.25$ | **$140.3\%$** | **$27.7\%$ reduction** |
+*(From Table II of the research paper; CV is $100s/\bar{x}$ using $n-1$ sample standard deviation)*
+
+| Feature | Raw CV (%) | Normalized Invariant CV (%) | Dispersion Reduction | Healthy Converged (43 Corners)<br>Raw $\to$ Norm CV |
+|---|:---:|:---:|:---:|:---:|
+| **Hold SNM ($\text{SNM}_{\text{hold}}$)** | $12.40\%$ | **$0.00\%$** | **$100\%$ eliminated** | $12.31\% \to \mathbf{0.00\%}$ |
+| **Bitline Swing ($\Delta V_{\text{BL}}$)** | $38.50\%$ | **$0.00\%$** | **$100\%$ eliminated** | $38.83\% \to \mathbf{0.00\%}$ |
+| **Write Delay ($t_{\text{write}}$)** | $18.30\%$ | **$3.49\%$** | **$80.9\%$ reduction** | $18.53\% \to \mathbf{0.00\%}$ |
+| **Standby Current ($I_{\text{DDQ}}$)** | $197.59\%$ | **$111.80\%$** | **$43.4\%$ reduction** | $139.95\% \to \mathbf{0.00\%}$ |
+| **Read SNM ($\text{SNM}_{\text{read}}$)** | $22.10\%$ | **$15.25\%$** | **$31.0\%$ reduction** | $22.26\% \to \mathbf{15.61\%}$ |
 
 ### 4.2 Classification Performance Across Protocols (Random Forest)
-| Evaluation Protocol | Raw Features Accuracy | Invariant Features Accuracy | Generalization Gain |
-|---|---|---|---|
-| **Standard Split (Nominal Corner)** | $91.56\% \pm 0.89\%$ | **$99.33\% \pm 0.54\%$** | **$+7.77\%$** |
-| **Leave-One-Corner-Out (LOCO)** | $66.22\% \pm 12.58\%$ *(Min: 50.0%)* | **$99.33\% \pm 1.33\%$** *(Min: 96.7%)* | **$+33.11\%$** |
+*(From Table III of the research paper; standard deviations reflect population std with $\mathrm{ddof}=0$)*
+
+| Evaluation Protocol | Raw Features Accuracy | Normalized Invariant Set | Generalization Gain | Worst-Corner Floor |
+|---|:---:|:---:|:---:|:---:|
+| **Standard Split (Nominal Corner)** | $100.0\%$ | **$100.0\%$** | $0.0\,\text{pp}$ | $100.0\%$ |
+| **Leave-One-Corner-Out (LOCO across 45 corners)** | $75.11\% \pm 14.15\%$ [Min: 50.0%] | **$99.33\% \pm 1.94\%$** [Min: 90.0%] | **$+24.22\,\text{pp}$** | $50.00\% \to \mathbf{90.00\%}$ *(39/45 perfect)* |
+
+*(Note: On the 1,327 converged rows, normalized Random Forest reaches **99.70% LOCO accuracy** with 43/45 perfect corners; HistGradientBoosting reaches **99.41% $\pm$ 2.14%** with an 86.67% floor).*
 
 ---
 
@@ -238,10 +245,10 @@ When writing the paper or thesis report, structure the content as follows:
 ### Section 5: Experimental Results & Discussion
 - Present Table 4.2 comparing all 4 ML models (Random Forest, Logistic Regression, Linear SVM, HistGB) and the Non-ML Baseline.
 - Include `fig2_cross_pvt_loco_accuracy.png` and `fig3_rf_pvt_corner_heatmap.png`.
-- **Explain the Physics:** Why does raw accuracy drop to $66\%$ under LOCO? Because subthreshold leakage increases $>100\times$ between $-40^\circ\text{C}$ and $125^\circ\text{C}$, leading the classifier to misdiagnose high temperature as an internal bridging fault. Invariant normalization removes this thermal pedestal, restoring $>99\%$ accuracy.
+- **Explain the Physics:** Why does raw accuracy drop to $75.11\%$ under LOCO (falling to a $50.00\%$ floor at extreme corners)? Because subthreshold leakage increases by $>100\times$ between $-40^\circ\text{C}$ and $125^\circ\text{C}$, leading the classifier to misdiagnose high temperature as an internal bridging fault, while low supply slows down healthy cell switching. Invariant normalization cancels these common-mode variations, restoring $99.33\%$ to $99.41\%$ accuracy across all 45 corners.
 
 ### Section 6: Conclusion
-- Summary of achievements: automated SPICE pipeline, 45-corner PVT dataset, $>33\%$ cross-PVT generalization improvement, and publication-ready diagnostic models.
+- Summary of achievements: automated SPICE pipeline, 45-corner PVT dataset, $+24.22\,\text{pp}$ cross-PVT generalization improvement (Random Forest lifted from $75.11\%$ to $99.33\%$), and publication-ready diagnostic models.
 
 ---
 
