@@ -9,10 +9,12 @@
 
 ## 1. Summary Results
 
-| Mode | Lobe 1 (State 0) | Lobe 2 (State 1) | SNM | Asymmetry | Expected SNM | Status |
+The rounded references provide a consistency check for the nominal LTspice sweeps. The finite search grid and interpolation limit the extraction resolution.
+
+| Mode | Lobe 1 (State 0) | Lobe 2 (State 1) | SNM | Asymmetry | Recorded reference | Difference from reference |
 |---|---|---|---|---|---|---|
-| **Read SNM (Healthy)** | 263.6900 mV | 263.6900 mV | **263.6900 mV** (0.2637 V) | 0.0000 mV | 263.7 mV ± 1 mV | **PASS** (Δ = −0.01 mV) |
-| **Hold SNM (Healthy)** | 470.0579 mV | 470.0579 mV | **470.0579 mV** (0.4701 V) | 0.0000 mV | ~470 mV ± 5 mV | **CONFIRMED** (Δ = +0.06 mV vs 470 mV) |
+| **Read SNM (Healthy)** | 263.6900 mV | 263.6900 mV | **263.6900 mV** (0.2637 V) | 0.0000 mV | 263.70 mV | −0.01 mV |
+| **Hold SNM (Healthy)** | 470.0579 mV | 470.0579 mV | **470.0579 mV** (0.4701 V) | 0.0000 mV | 470.00 mV | +0.06 mV |
 
 ---
 
@@ -20,7 +22,7 @@
 
 ### Read Mode VTC ($V_{WL} = 1.0\text{ V}$, $V_{BL} = V_{BLB} = 1.0\text{ V}$)
 
-| $V(Q)$ [V] | Appendix C Oracle [V] | LTspice Measured [V] | Difference [mV] |
+| $V(Q)$ [V] | Recorded reference [V] | LTspice measured [V] | Difference [mV] |
 |---|---|---|---|
 | 0.00 | 1.0000 | 1.0000 | 0.0 |
 | 0.30 | 1.0000 | 1.0000 | 0.0 |
@@ -32,13 +34,13 @@
 | 0.70 | 0.2204 | 0.2204 | 0.0 |
 | 1.00 | 0.1268 | 0.1268 | 0.0 |
 
-*All measured VTC points match the Appendix C LTspice oracle to 4 decimal places.*
+The tabulated read VTC points agree with the recorded reference to four decimal places.
 
 ---
 
 ### Hold Mode VTC ($V_{WL} = 0.0\text{ V}$, $V_{BL} = V_{BLB} = 1.0\text{ V}$)
 
-| $V(Q)$ [V] | Appendix C Oracle [V] | LTspice Measured [V] | Difference [mV] |
+| $V(Q)$ [V] | Recorded reference [V] | LTspice measured [V] | Difference [mV] |
 |---|---|---|---|
 | 0.00 | 1.0000 | 1.0000 | 0.0 |
 | 0.30 | 1.0000 | 1.0000 | 0.0 |
@@ -50,7 +52,7 @@
 | 0.70 | 0.0000 | 0.0000 | 0.0 |
 | 1.00 | 0.0000 | 0.0000 | 0.0 |
 
-*Measured LTspice hold curve matches the Python model from Appendix C exactly across all checkpoints.*
+The tabulated hold VTC points agree with the recorded reference to four decimal places.
 
 ---
 

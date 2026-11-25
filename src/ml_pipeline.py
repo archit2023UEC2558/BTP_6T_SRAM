@@ -1,7 +1,9 @@
-"""Machine Learning Pipeline for SRAM Fault Diagnosis.
+"""Development machine learning pipeline for SRAM fault diagnosis.
 
-Implements Section 6.7 of PLAN (3).md:
-- Classical ML models:
+This pipeline uses different model and feature settings from the four-model
+manuscript benchmark in scripts/run_authentic_45corner_evaluation.py.
+
+- Development models:
   1. RandomForestClassifier
   2. LogisticRegression
   3. SVC(kernel="linear")
@@ -9,10 +11,10 @@ Implements Section 6.7 of PLAN (3).md:
   5. BaselineRuleDetector (Non-ML baseline)
 - Two evaluation protocols:
   1. Standard Split (Nominal 1.0V, 27°C corner, leakage-checked train/test)
-  2. Leave-One-Corner-Out (LOCO across all 15 PVT corners)
+  2. Leave-One-Corner-Out (LOCO across the corners in the supplied dataset)
 - Feature sets:
   - Raw Features
-  - Physics-Normalized Invariant Features
+  - Reference-normalized and internal ratio features
 - Artifacts:
   - Saved model pickles in `models/{model}_{feature_set}_{protocol}.pkl`
   - Comparison table in `reports/final_results/comparison_table.csv`
@@ -205,7 +207,8 @@ def run_leave_one_corner_out_protocol(
 ) -> Tuple[List[Dict], Dict[str, object]]:
     """Protocol 2: Leave-One-Corner-Out (LOCO) Cross-PVT Validation.
     
-    Trains on 14 corners, tests on the 1 held-out corner; repeats for all 15 corners.
+    Hold out each corner in turn and train on all remaining corners.
+    The full 45-corner benchmark dataset yields 44 training corners per fold.
     """
     unique_corners = sorted(df["corner_id"].unique())
     results = []
@@ -284,7 +287,7 @@ def main():
     # Protocol 2: Leave-One-Corner-Out
     print("\n[2/2] Executing Protocol 2: Leave-One-Corner-Out (LOCO)...")
     res_loco, models_loco = run_leave_one_corner_out_protocol(df, feature_sets)
-    print(f"  LOCO completed: {len(res_loco)} evaluations across 15 corners.")
+    print(f"  LOCO completed: {len(res_loco)} evaluations across {df['corner_id'].nunique()} corners.")
 
     # Combine results
     all_results = res_std + res_loco

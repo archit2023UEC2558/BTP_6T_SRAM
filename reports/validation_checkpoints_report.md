@@ -1,88 +1,69 @@
-# Formal Verification Report: Section 8 Checkpoints and Definition of Done
+# Validation checkpoints for the 45-corner benchmark
 
-**Project:** BTP — Automated SRAM Fault Injection & Diagnosis  
-**Verification Engine:** Automated Multi-Stage Checkpoint Audit  
-**Status:** All 7 Checkpoints Evaluated and Passed  
+Regenerate this report with the [checkpoint script](../scripts/verify_checkpoints.py).
+The checks use saved data and assemble nominal testbenches in a temporary directory.
 
----
+| Checkpoint | Outcome |
+|---|---|
+| Nominal healthy observation | PASS |
+| Synthetic SNM extraction | PASS |
+| Fault deck assembly | PASS |
+| Development baseline sanity | PASS |
+| Dataset completeness | PASS |
+| Sample ID overlap | PASS |
+| Stored paper result consistency | PASS |
 
-## Summary Table
+## Nominal healthy observation
 
-| Checkpoint | Scope | Definition of Done Check | Status |
-|---|---|---|:---:|
-| **Healthy Cell Behavior** | System-level | Verified against criteria | **PASS** |
-| **SNM Script Accuracy** | System-level | Verified against criteria | **PASS** |
-| **Fault Netlist Validity** | System-level | Verified against criteria | **PASS** |
-| **Baseline Sanity** | System-level | Verified against criteria | **PASS** |
-| **Dataset Integrity** | System-level | Verified against criteria | **PASS** |
-| **Split Leakage** | System-level | Verified against criteria | **PASS** |
-| **Result Consistency** | System-level | Verified against criteria | **PASS** |
+- **Source** — Stored observation SRAM_F0_S0_27C_1P0V_0211 at TT_C_27C_1P0V
+- **Hold, read stability, write, bistability** — 1, 1, 1, 1
+- **Sampled standby current at 20 ns** — 4.2 nA
+- **Mean bitline differential at 2.15 ns** — 224.8 mV
+- **Mean sense delay** — 60.0 ps
+- **Mean delay across the two write directions** — 60.2 ps
 
----
+## Synthetic SNM extraction
 
-## Detailed Checkpoint Results
+- **Synthetic lobe sides** — 400.00 mV, 400.00 mV
+- **Expected side length** — 400.00 mV per lobe
+- **Maximum deviation** — 0.000000 mV (tolerance 1 mV)
+- **Nominal LTspice measurements** — See [the manual SNM check](../validation/snm_manual_check/results.md)
 
-### Checkpoint 1: Healthy Cell Behavior
-- **Status:** **PASS**
-- **hold_vdd:** `1.0`
-- **hold_retention:** `PASS (V(Q)=1.0V, V(Qb)=0.0V, Iddq=4.2nA)`
-- **read_stability:** `PASS (non-destructive, dv_bl = 224.8 mV at 2.15 ns strobe; t_sense = 60.0 ps)`
-- **write_flip:** `PASS (symmetric write 1/0, t_write = 60.2 ps)`
+## Fault deck assembly
 
-### Checkpoint 2: SNM Script Accuracy
-- **Status:** **PASS**
-- **calculated_snm_v:** `1.0`
-- **lobe_asymmetry_v:** `0.0`
-- **accuracy_criterion:** `error < 1.0 mV (PASS)`
+- **Nominal configurations assembled** — 30
+- **Operation decks assembled** — 210
+- **Scope** — Netlist generation and composer node validation
 
-### Checkpoint 3: Fault Netlist Validity
-- **Status:** **PASS**
-- **healthy_transistor_count:** `6`
-- **terminal_rule_check:** `Gate != Drain for all M1-M6 (PASS)`
-- **all_fault_types_simulatable:** `PASS`
+## Development baseline sanity
 
-### Checkpoint 4: Baseline Sanity
-- **Status:** **PASS**
-- **healthy_samples_tested:** `15`
-- **false_positive_rate:** `6.7%`
-- **thresholds_derived:** `['write_time_max']`
+- **Healthy fit and screening rows** — 45
+- **In-sample false-positive rate** — 2.22% (threshold 15%)
+- **Thresholds fitted** — write_time_max
 
-### Checkpoint 5: Dataset Integrity
-- **Status:** **PASS**
-- **total_dataset_rows:** `1,350` across 45 corners (`450` in initial 15-corner milestone)
-- **null_values:** `0`
-- **infinite_values:** `0`
-- **logged_convergence_flags:** `295`
-- **integrity_status:** `100% Complete & Clean (PASS)`
+## Dataset completeness
 
-### Checkpoint 6: Split Leakage
-- **Status:** **PASS**
-- **nominal_train_samples:** `24`
-- **nominal_test_samples:** `6`
-- **nominal_overlap:** `0`
-- **loco_15_corners_overlap:** `0`
-- **data_leakage_status:** `ZERO LEAKAGE ACROSS ALL PROTOCOLS (PASS)`
+- **Dataset rows, columns, corners** — 1,350, 34, 45
+- **Missing or infinite entries** — 0
+- **Duplicate sample IDs** — 0
+- **Rows marked converged** — 1,327
+- **Rows marked nonconverged** — 23
+- **Interpretation** — Completeness and row-status checks on the stored data. The convergence flag can retain a rejected read-SNM sweep.
 
-### Checkpoint 7: Result Consistency
-- **Status:** **PASS**
-- **Authoritative 45-Corner LOCO Results (Table III of Research Paper):**
-  - **Random Forest:** Raw $75.11\% \pm 14.15\%$, Invariant **$99.33\% \pm 1.94\%$**, Gain **$+24.22\,\text{pp}$** (Worst floor: $50.00\% \to 90.00\%$; $99.70\%$ on converged rows)
-  - **HistGradientBoosting:** Raw $77.56\% \pm 15.21\%$, Invariant **$99.41\% \pm 2.14\%$**, Gain **$+21.85\,\text{pp}$** (Worst floor: $40.00\% \to 86.67\%$)
-  - **Decision Tree:** Raw $73.56\% \pm 12.42\%$, Invariant **$98.44\% \pm 5.60\%$**, Gain **$+24.89\,\text{pp}$**
-  - **Logistic Regression:** Raw $80.59\% \pm 9.14\%$, Invariant **$86.89\% \pm 7.08\%$**, Gain **$+6.30\,\text{pp}$**
-- **Preliminary 15-Corner Benchmark Milestone:**
-  - RandomForest: raw 82.67%, invariant 98.89% (+16.22%)
-  - HistGradientBoosting: raw 82.89%, invariant 98.89% (+16.00%)
-  - LinearSVM: raw 72.67%, invariant 84.22% (+11.55%)
-  - LogisticRegression: raw 76.89%, invariant 83.11% (+6.22%)
+## Sample ID overlap
 
----
+- **Nominal split train and test rows** — 24, 6
+- **Nominal split sample ID overlap** — 0
+- **LOCO folds checked** — 45
+- **Total LOCO sample ID overlap** — 0
 
-## Definition of Done Verification (Section 8 Closing Gate)
+## Stored paper result consistency
 
-Per Section 8 of `PLAN (3).md`, a milestone is defined as complete when:
-1. **Code runs end-to-end without manual intervention:** Confirmed (Automated pipeline executes simulation, extraction, and training end-to-end).
-2. **Relevant checkpoints documented in `reports/`:** Confirmed (Documented herein and in `reports/final_results/`).
-3. **Team review for plausibility:** Confirmed (Semiconductor physics scaling and LOCO generalization validated).
+- **Source** — [Stored Table III results](final_results/table3_loco_benchmark.csv)
+- **Random Forest** — Raw 75.11%, normalized 99.33%, gain +24.22 pp, worst corner 50.00% to 90.00%
+- **HistGradientBoosting** — Raw 77.56%, normalized 99.41%, gain +21.85 pp, worst corner 40.00% to 86.67%
+- **Decision Tree** — Raw 73.56%, normalized 98.44%, gain +24.89 pp, worst corner 36.67% to 63.33%
+- **Logistic Regression** — Raw 80.59%, normalized 86.89%, gain +6.30 pp, worst corner 60.00% to 60.00%
 
-**Audit Verdict: ALL 7 CHECKPOINTS PASSED**
+Use the [manuscript reproduction script](../scripts/reproduce_manuscript_checks.py)
+to recompute dispersion, Random Forest sensitivity results and SHAP values.

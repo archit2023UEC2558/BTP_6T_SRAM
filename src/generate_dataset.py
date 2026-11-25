@@ -4,24 +4,24 @@ src/generate_dataset.py -- PVT+Process Simulation & Diagnostic Dataset Orchestra
 Orchestrates batch SPICE simulations across:
   - 3 Process corners (FF, TT, SS) x 15 V-T corners = 45 total corners
   - 5 Fault classes (Healthy, Resistive Open, Bridging, Vth Drift Storage, Vth Drift Access)
-  - Parametric severity sweeps for each fault class
-  - Yields 1,350 dataset rows (30 samples/corner x 45 corners)
-    requiring ~9,450 SPICE simulations (7 testbenches/sample)
+  - Discrete fault levels, including six increases of 5% to 30% in |VTO|
+  - 1,350 dataset rows (30 samples/corner x 45 corners), with seven operation
+    decks per sample and seven matched healthy reference decks per corner
 
 Process corner parameterization (relative to TT baseline in config.yaml):
   TT -- no change (VTO=0.45, KP=250u for NMOS; VTO=-0.45, KP=100u for PMOS)
   FF -- KP +10%, |VTO| -10% (faster devices)
   SS -- KP -10%, |VTO| +10% (slower devices)
 
-Extracts both Raw Dynamic & SNM features, and computes Physics-Normalized
-(PVT-Invariant) features by referencing a healthy cell simulated at the same corner
-AND process point, making the invariant features robust to all three variation axes.
+Extracts dynamic and SNM measurements and computes feature ratios using a
+healthy reference simulated at the same process, voltage, and temperature.
 
 Outputs:
   - data/sram_fault_dataset.csv        (Master dataset: all 45 corners & 1,350 samples)
   - data/sram_fault_dataset_indist.csv (Nominal corner: VDD=1.0V, Temp=27C, TT process)
   - data/sram_fault_dataset_ood.csv    (Held-out OOD corners)
-  - logs/convergence_flags.csv         (Audit of any simulation warnings)
+  - logs/convergence_flags_*.csv       (Per-process target warning logs)
+  - logs/ref_sim_flags_*.csv           (Per-process reference warning logs)
 """
 
 import os
@@ -812,7 +812,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate SRAM fault diagnostic dataset across PVT and Process corners.")
     parser.add_argument("--workers", type=int, default=8, help="Number of concurrent worker threads.")
     parser.add_argument("--no-prune", action="store_true", help="Do not delete .raw files after extraction.")
-    parser.add_argument("--pilot", action="store_true", help="Run 2-corner pilot test rather than full 15 corners.")
+    parser.add_argument("--pilot", action="store_true", help="Run two voltage-temperature points per selected process.")
     parser.add_argument("--process-corners", type=str, default=None,
                         help="Comma-separated process corners to run (e.g. 'TT' or 'TT,FF,SS'). Default runs all.")
     args = parser.parse_args()

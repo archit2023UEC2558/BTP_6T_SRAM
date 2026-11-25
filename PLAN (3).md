@@ -1,5 +1,7 @@
 # PLAN.md — PVT-Invariant Fault Diagnosis in 6T SRAM Cells
 
+> Historical planning document. See the [current project documentation](PROJECT_DOCUMENTATION.md) and [manuscript](Research_paper.tex) for the implemented benchmark.
+
 **Project:** BTP — PVT-Invariant Feature Engineering for Parametric Fault Diagnosis in a 6T SRAM Cell
 **Team size:** 4
 **This file is the full engineering + team handoff.** It is written to be read by human team members and Antigravity (or any coding agent) as the working spec. If anything here conflicts with `BTP_SRAM_Proposal.docx`, the docx is the source of truth for research framing; this file is the source of truth for implementation detail and task ownership.
@@ -301,7 +303,7 @@ Threshold values derived from the healthy-class distribution in the **training s
 | Split leakage | C | Week 7 | Automated test asserts zero sample_id overlap across train/val/test | **[x] PASS** |
 | Result consistency | C | Week 8 | Raw-vs-invariant comparison holds across all 4 models, not just one | **[x] PASS** |
 
-> **Automated Audit Verified:** All 7 checkpoints were verified programmatically via `scripts/verify_checkpoints.py` and documented in [`reports/validation_checkpoints_report.md`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/validation_checkpoints_report.md).
+> The [current checkpoint report](reports/validation_checkpoints_report.md) describes the checks available for the saved 45-corner benchmark and states the scope of each check.
 
 A milestone is **not** complete until: (1) the code runs end-to-end without manual intervention beyond the deliberately-manual Week 1–2 steps, (2) the relevant checkpoint above has passed and is documented in `reports/`, (3) a team member other than the author has reviewed the output for plausibility.
 

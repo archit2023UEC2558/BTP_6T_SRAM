@@ -1,13 +1,10 @@
 # 6T SRAM Fault Injection, Simulation & Diagnostic Pipeline — Complete Project Documentation
 
-**Project:** BTP — Automated SRAM Fault Injection & Diagnosis  
-**Technology Node:** 180nm CMOS ($V_{DD} = 1.0\,\text{V}$ nominal, $0.9\,\text{V}$–$1.1\,\text{V}$ PVT sweep, TT/FF/SS process corners)  
-**Simulator Engine:** LTspice (via PyLTSpice / direct headless subprocess execution)  
-**Status:** All Stages (1 through 8) Fully Implemented, Verified, Trained, and Audited  
-**Test Suite:** 62/62 Tests Passing (`pytest`)  
-**Dataset:** 1,350 physical SPICE samples across 45 PVT corners (3 process corners $\times$ 3 supply voltages $\times$ 5 temperatures), 34-column schema, 0 missing/NaN values  
-**Models:** 20 trained model artifacts persisted in `models/`  
-**Generalization Gain:** **$+21.8\%$ to $+24.9\%$** cross-PVT LOCO improvement using Physics-Normalized Invariant Features (Random Forest: $75.11\% \to 99.33\%$, worst-corner floor lifted from $50.00\%$ to $90.00\%$)  
+- **Project.** BTP — Automated SRAM Fault Injection & Diagnosis.
+- **Circuit.** 180 nm 6T SRAM with generic Level-1 models in LTspice.
+- **Dataset.** 1,350 configuration–corner observations across 45 PVT corners. The 34-column CSV stores finite values, including numerical fallbacks.
+- **Models.** The paper benchmarks Random Forest, HistGradientBoosting, Decision Tree, and Logistic Regression.
+- **Random Forest LOCO.** Pooled accuracy rises from 75.11% to 99.33%, a gain of 24.22 percentage points. Worst-corner accuracy rises from 50.00% to 90.00%.
 
 ---
 
@@ -16,10 +13,10 @@
 This repository contains an end-to-end automated framework for:
 1. Modeling physical and parametric defects in a standard 6T SRAM cell (Resistive Opens, Bridging Faults, and $V_{th}$ Drifts).
 2. Composing runnable SPICE testbenches for multiple memory operations (Hold, Write 1/0, Read 1/0, and DC Butterfly-Curve Hold/Read Static Noise Margins).
-3. Simulating across a 45-corner Process-Voltage-Temperature (PVT) grid (3 process corners: TT, FF, SS; $V_{DD} \in [0.9, 1.0, 1.1]\,\text{V}$; $T \in [-40, 0, 27, 75, 125]^\circ\text{C}$).
-4. Extracting raw dynamic/static features and computing physics-normalized invariant features relative to a same-PVT reference cell.
-5. Providing both non-ML baseline rule detectors and classical machine learning classifiers (Random Forest, Logistic Regression, Linear SVM, HistGradientBoosting).
-6. Evaluating cross-PVT generalization via Standard Split and Leave-One-Corner-Out (LOCO) protocols across all 45 corners.
+3. Simulating across a 45-corner process-voltage-temperature (PVT) grid with three process settings (TT, FF, SS), three supply voltages (0.9, 1.0, and 1.1 V), and five temperatures (−40, 0, 27, 75, and 125 °C).
+4. Extracting raw dynamic/static features and computing reference-normalized features using a separately simulated healthy cell at the same corner.
+5. Comparing the four manuscript classifiers and keeping the development pipeline available for the historical Linear SVM and rule-based experiments.
+6. Evaluating cross-PVT generalization with leave-one-corner-out (LOCO) folds over all 45 corners and separate fault-parameter holdouts.
 7. Conducting data policy sensitivity audits and generating publication-ready figures.
 
 ```
@@ -61,13 +58,13 @@ This repository contains an end-to-end automated framework for:
                      +----------------+----------------+
                      |                                 |
            [ src/baseline_detector.py ]       [ src/ml_pipeline.py ]
-           (3-Sigma Healthy Rule Checks)      (RF, LR, SVM, HistGB)
+           (3-Sigma Healthy Rule Checks)      (Development experiments)
                      |                                 |
                      +----------------+----------------+
                                       |
                          [ src/cross_pvt_analysis.py ]
                          [ scripts/redraw_*.py       ]
-                         (LOCO Generalization & Figures)
+                         (Development reports and figures)
 ```
 
 ---
@@ -101,42 +98,24 @@ btp-sram-fault-diagnosis/
 │   ├── baseline_detector.py             # Non-ML 3-sigma statistical baseline classifier
 │   ├── ml_pipeline.py                   # Classical ML models, Standard Split, and LOCO protocols
 │   └── cross_pvt_analysis.py            # Feature spread analysis and publication-ready figures
-├── models/                              # Persisted trained model artifacts (20 .pkl files)
-│   ├── randomforest_invariant_leaveonecorner.pkl
-│   ├── randomforest_invariant_standard.pkl
-│   ├── randomforest_raw_leaveonecorner.pkl
-│   ├── randomforest_raw_standard.pkl
-│   ├── histgradientboosting_invariant_leaveonecorner.pkl
-│   ├── histgradientboosting_invariant_standard.pkl
-│   ├── histgradientboosting_raw_leaveonecorner.pkl
-│   ├── histgradientboosting_raw_standard.pkl
-│   ├── linearsvm_invariant_leaveonecorner.pkl
-│   ├── linearsvm_invariant_standard.pkl
-│   ├── linearsvm_raw_leaveonecorner.pkl
-│   ├── linearsvm_raw_standard.pkl
-│   ├── logisticregression_invariant_leaveonecorner.pkl
-│   ├── logisticregression_invariant_standard.pkl
-│   ├── logisticregression_raw_leaveonecorner.pkl
-│   ├── logisticregression_raw_standard.pkl
-│   ├── nonml_baseline_invariant_leaveonecorner.pkl
-│   ├── nonml_baseline_invariant_standard.pkl
-│   ├── nonml_baseline_raw_leaveonecorner.pkl
-│   └── nonml_baseline_raw_standard.pkl
+├── models/                              # 20 development-pipeline pickles from two feature sets and two protocols
 ├── data/
 │   ├── sram_fault_dataset.csv           # Master complete dataset (1350 rows x 34 cols, 0 NaNs)
 │   ├── sram_fault_dataset_indist.csv    # In-distribution nominal dataset (30 rows, TT, 1.0V, 27°C)
-│   ├── sram_fault_dataset_ood.csv       # Out-of-distribution dataset (1320 rows, 44 held-out corners)
+│   ├── sram_fault_dataset_ood.csv       # Non-nominal export (1320 rows across 44 corners)
 │   └── demo_features/                   # Transient and SNM benchmark demonstration outputs
 ├── logs/
-│   └── convergence_flags.csv            # SPICE convergence & DC monotonicity audit log
+│   ├── convergence_flags.csv            # Earlier target warning log
+│   └── ref_sim_flags_FF.csv              # Example process-specific reference warning log
 ├── reports/
 │   ├── final_results/
-│   │   ├── comparison_table.csv         # Full model evaluation metrics across protocols (161 rows)
-│   │   ├── loco_summary.csv             # LOCO macro accuracy aggregation per model
-│   │   ├── feature_spread_comparison.csv# Coefficient of variation spread reduction table
+│   │   ├── comparison_table.csv         # Development-pipeline evaluation across protocols
+│   │   ├── loco_summary.csv             # Development-pipeline LOCO summary
+│   │   ├── table3_loco_benchmark.csv    # Four-model manuscript summary
+│   │   ├── feature_spread_comparison.csv# Development dispersion output
 │   │   └── fault_feature_spread.csv     # Per-fault-class CV dispersion metrics
 │   ├── figures/
-│   │   ├── fig1_feature_dispersion_comparison.png  # Z-score boxplots across corners (Healthy)
+│   │   ├── fig1_feature_dispersion_comparison.png  # Development copy of the dispersion plot
 │   │   ├── fig1b_fault_dispersion.png              # Cross-corner CV bar plots across fault classes
 │   │   ├── fig2_cross_pvt_loco_accuracy.png        # Bar chart comparing Raw vs Invariant (LOCO)
 │   │   ├── fig3_rf_pvt_corner_heatmap.png          # Per-corner Random Forest accuracy heatmap
@@ -146,18 +125,21 @@ btp-sram-fault-diagnosis/
 │       ├── dataset_clean_strict.csv     # 302-row dataset (strictly converged==1)
 │       ├── excluded_rows.csv            # Breakdown of excluded simulation rows
 │       ├── nonconverged_by_reason.csv   # Failure taxonomy breakdown
-│       ├── final_comparison_table.csv   # LOCO comparison across row policies
+│       ├── loco_summary_original_450.csv # Historical 15-corner summary
+│       ├── final_comparison_table.csv   # Historical LOCO comparison across row policies
 │       └── final_comparison_figure.png  # Accuracy progression across dataset policies
 ├── scripts/
-│   ├── verify_dataset_physics.py        # Automated physical scaling and statistical audit
+│   ├── reproduce_manuscript_checks.py   # Recompute Table II, RF controls, and Tree SHAP
+│   ├── verify_checkpoints.py            # Regenerate the 45-corner validation report
+│   ├── verify_dataset_physics.py        # Exploratory feature summaries
 │   ├── apply_row_policy.py              # Filters dataset by simulation validity policies
 │   ├── audit_nonconverged.py            # Deep-dive log parser for non-monotonic/timeout decks
-│   ├── make_final_comparison.py         # Cross-dataset comparative aggregator
+│   ├── make_final_comparison.py         # Historical 15-corner comparative aggregator
 │   ├── redraw_fig1_faults.py            # Re-draws Fig 1b fault-level dispersion
 │   ├── redraw_fig3_grid.py              # Re-draws Fig 3b voltage-temperature grid
 │   ├── demo_feature_extraction.py       # 25-sim symmetric dynamic benchmark
 │   └── demo_snm_features.py             # Butterfly-curve Hold & Read SNM demonstration
-├── tests/                               # 62 unit tests (100% passing)
+├── tests/                               # Python and LTspice integration tests
 ├── validation/
 │   └── snm_manual_check/
 │       └── results.md                   # Golden validation measurements & GUI cross-checks
@@ -171,9 +153,9 @@ btp-sram-fault-diagnosis/
 
 ## 3. Circuit Implementation & Sizing Definitions
 
-### 3.1 6T SRAM Cell Topology ([`circuits/core/cell_core_healthy.net`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/circuits/core/cell_core_healthy.net))
+### 3.1 6T SRAM Cell Topology ([`circuits/core/cell_core_healthy.net`](circuits/core/cell_core_healthy.net))
 
-The storage cell consists of two cross-coupled CMOS inverters ($M_1/M_3$ and $M_2/M_4$) and two NMOS access pass-gates ($M_5$ and $M_6$). Symmetrical orientation is enforced: drain = internal storage node, source = bitline.
+The storage cell consists of two cross-coupled CMOS inverters ($M_1/M_4$ at $Q_b$ and $M_2/M_3$ at $Q$) and two NMOS access pass-gates ($M_5$ and $M_6$). Symmetrical orientation is enforced: drain = internal storage node, source = bitline.
 
 ```spice
 M1 Qb Q Vdd Vdd SRAM_PMOS l=180nm w=360nm
@@ -190,14 +172,14 @@ Cqb Q  0 1fF
 
 - **Transistor Sizing Ratios:**
   - Pull-down NMOS ($M_3, M_4$): $W = 720\,\text{nm}$
-  - Access NMOS ($M_5, M_6$): $W = 540\,\text{nm}$ ($\text{Cell Ratio } \beta = 720/540 = 1.33$ ensures read stability)
-  - Pull-up PMOS ($M_1, M_2$): $W = 360\,\text{nm}$ ($\text{Pull-Up Ratio } \gamma = 540/360 = 1.50$ ensures writability)
+  - Access NMOS ($M_5, M_6$): $W = 540\,\text{nm}$ ($\text{Cell Ratio } \beta = 720/540 = 1.33$)
+  - Pull-up PMOS ($M_1, M_2$): $W = 360\,\text{nm}$ ($\text{Pull-Up Ratio } \gamma = 360/540 = 0.667$)
   - Gate Length ($L$): $180\,\text{nm}$ across all devices
 
 ### 3.2 Dynamic & Static Stimulus Fragments
 - **HOLD (`stimulus_hold.net`):** $WL = 0\,\text{V}, BL = BLB = V_{DD}$. Retention check and standby current ($I_{\text{ddq}}$) measurement.
-- **WRITE 1 (`stimulus_write.net`):** $BL = V_{DD}, BLB = 0\,\text{V}$. Exercises $M_6$ and $M_4$ pull-down path.
-- **WRITE 0 (`stimulus_write_0.net`):** $BL = 0\,\text{V}, BLB = V_{DD}$. Exercises $M_5$ and $M_3$ pull-down path.
+- **WRITE 1 (`stimulus_write.net`):** $BL = V_{DD}, BLB = 0\,\text{V}$. $M_6$ pulls $Q_b$ down against pull-up $M_1$.
+- **WRITE 0 (`stimulus_write_0.net`):** $BL = 0\,\text{V}, BLB = V_{DD}$. $M_5$ pulls $Q$ down against pull-up $M_2$.
 - **READ 1 (`stimulus_read.net`):** Precharged bitlines ($C_{\text{BL}} = 20\,\text{fF}$ charged to $V_{DD}$). $BLB$ discharges through $M_6/M_4$.
 - **READ 0 (`stimulus_read_0.net`):** Precharged bitlines ($C_{\text{BL}} = 20\,\text{fF}$ charged to $V_{DD}$). $BL$ discharges through $M_5/M_3$.
 - **SNM HOLD (`stimulus_snm_hold.net`):** Access devices OFF ($WL = 0\,\text{V}$). DC sweep $V_5$ from $0 \to V_{DD}$ in $1\,\text{mV}$ steps. Traces $V(Q), V(Qb), V(Q\_c2), V(Qb\_c2)$.
@@ -209,27 +191,30 @@ Cqb Q  0 1fF
 
 | Class | Fault Type | Physical Mechanism | Target Devices | Severity Sweep |
 |---|---|---|---|---|
-| **0** | **Healthy** | Nominal defect-free cell | None | Baseline ($15$ corners) |
+| **0** | **Healthy** | Nominal defect-free cell | None | One healthy observation per corner |
 | **1** | **Resistive Open** | Contact/via void or metal electromigration | Access pass-gates $M_5$ or $M_6$ | $200\,\Omega, 500\,\Omega, 1\,\text{k}\Omega, 2\,\text{k}\Omega, 5\,\text{k}\Omega, 10\,\text{k}\Omega$ |
 | **2** | **Bridging Fault** | Inter-layer dielectric breakdown / metal sliver | Storage nodes $Q \leftrightarrow \bar{Q}$ | $500\,\Omega, 1\,\text{k}\Omega, 2\,\text{k}\Omega, 5\,\text{k}\Omega, 10\,\text{k}\Omega$ |
-| **3** | **$V_{th}$ Drift (Storage)** | Bias Temperature Instability (BTI) / HCI | Inverter pair $M_1$–$M_4$ only | $\pm 5\%, \pm 10\%, \pm 15\%, \pm 20\%, \pm 25\%, \pm 30\%$ |
-| **4** | **$V_{th}$ Drift (Access)** | Pass-gate dielectric trapping | Access pair $M_5/M_6$ only | $\pm 5\%, \pm 10\%, \pm 15\%, \pm 20\%, \pm 25\%, \pm 30\%$ |
+| **3** | **$V_{th}$ Drift (Storage)** | Bias Temperature Instability (BTI) / HCI | Inverter pair $M_1$–$M_4$ only | $\lvert V_{\mathrm{TO}}\rvert$ increases by 5%, 10%, 15%, 20%, 25%, or 30% |
+| **4** | **$V_{th}$ Drift (Access)** | Pass-gate dielectric trapping | Access pair $M_5/M_6$ only | $\lvert V_{\mathrm{TO}}\rvert$ increases by 5%, 10%, 15%, 20%, 25%, or 30% |
 
 ---
 
+At an affected PMOS, increasing $|V_{\mathrm{TO}}|$ makes $V_{\mathrm{TO}}$ more negative.
+
 ## 5. PVT Simulation Engine & Multi-Threading
 
+
 ### 5.1 PVT Sweep Grid (45 Corners)
-- **Process Corners (3):** Typical-Typical (TT), Fast-Fast (FF), Slow-Slow (SS)
-- **Supply Voltage ({DD}$):** .9\,\text{V}$ ($-10\%$), .0\,\text{V}$ (nominal), .1\,\text{V}$ ($+10\%$)
-- **Temperature ($):** $-40^\circ\text{C}$ (industrial cold), ^\circ\text{C}$, ^\circ\text{C}$ (room nominal), ^\circ\text{C}$, ^\circ\text{C}$ (worst-case thermal)
-- **Grid Configuration:**  \times 3 \times 5 = 45$ PVT corners ($ samples/corner = ,350$ total samples)
-- **In-Distribution Corner:** {DD} = 1.0\,\text{V}, T = 27^\circ\text{C}$, TT process (TT_C_27C_1P0V, 30 samples)
-- **Out-of-Distribution (OOD):** Remaining 44 corners (1,320 samples)
-- **Total SPICE Simulations:** 9,765 physical runs (9,450 fault runs + 315 dedicated reference characterizations)
+
+- **Process settings** — TT, FF, SS. FF applies $0.90\times |V_{\mathrm{TO}}|$ and $1.10\times KP$ relative to TT. SS applies $1.10\times |V_{\mathrm{TO}}|$ and $0.90\times KP$.
+- **Supply voltage** — $V_{DD}=0.9, 1.0, 1.1\,\text{V}$.
+- **Temperature** — $T=-40, 0, 27, 75, 125\,^\circ\text{C}$.
+- **Grid** — $3\times3\times5=45$ corners and 30 observations per corner, for 1,350 rows.
+- **Nominal export** — TT at 1.0 V and 27 °C (`TT_C_27C_1P0V`), 30 rows. The remaining-corner export has 1,320 rows across 44 corners.
+- **SPICE runs** — 9,450 target-operation runs and 315 matched healthy reference-operation runs, for 9,765 total.
 
 ### 5.2 Dynamic Netlist Composer
-[`src/testbench_composer.py`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/src/testbench_composer.py) dynamically updates:
+[`src/testbench_composer.py`](src/testbench_composer.py) dynamically updates:
 1. Voltage sources (`Vdd`, `V1`, `V3`, `V4`) to target $V_{DD}$.
 2. Wordline and bitline pulse amplitude levels.
 3. Precharge initial condition `.ic` voltages ($V(BL) = V_{DD}, V(Q) = V_{DD}$).
@@ -237,57 +222,48 @@ Cqb Q  0 1fF
 5. Injects `.temp <T>` directive.
 
 ### 5.3 Direct Process Runner & Race Condition Resolution
-PyLTSpice's default `SimRunner.run_now()` exhibits file collision errors on Windows when multiple Python threads access shared deck files. To solve this, [`src/simulation_runner.py`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/src/simulation_runner.py) directly invokes headless LTspice processes (`LTspice.exe -b -ascii <unique_deck>`). Over 3,126 intermediate `.raw` waveform files were pruned on the fly, keeping disk usage under 50 MB.
+PyLTSpice's default `SimRunner.run_now()` exhibits file collision errors on Windows when multiple Python threads access shared deck files. To solve this, [`src/simulation_runner.py`](src/simulation_runner.py) directly invokes headless LTspice processes (`LTspice.exe -b -ascii <unique_deck>`). The dataset generator supports pruning intermediate waveform files.
 
 ---
 
 ## 6. Dataset Schema & Physics Normalization
 
 ### 6.1 Master Dataset Schema (34 Columns)
-Each row in [`data/sram_fault_dataset.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/data/sram_fault_dataset.csv) contains:
+Each row in [`data/sram_fault_dataset.csv`](data/sram_fault_dataset.csv) contains:
 - **Metadata:** `sample_id`, `corner_id`, `pvt_type`, `vdd_v`, `temperature_c`, `process_corner`
 - **Labels:** `fault_class` ($0$ to $4$), `fault_name`, `fault_target`, `severity_value`
 - **Raw Dynamic Features:** `i_ddq_uA`, `t_write_ps`, `i_write_peak_mA`, `dv_bl_strobe_mV`, `t_sense_ps`, `v_bump_mV`, `hold_pass`, `write_pass`, `read_stable_pass`
 - **Raw Static & SNM Features:** `snm_hold_v`, `snm_read_v`, `snm_asym_hold_v`, `snm_asym_read_v`, `snm_drop_v`, `is_bistable`
-- **Physics-Normalized Invariant Features:**
+- **Reference-normalized and internal ratios**
   - $\text{iddq\_norm} = I_{\text{ddq}} / I_{\text{ddq, ref}}$
   - $\text{t\_write\_norm} = t_{\text{write}} / t_{\text{write, ref}}$
   - $\text{dv\_bl\_norm} = \Delta V_{\text{BL}} / \Delta V_{\text{BL, ref}}$
   - $\text{snm\_hold\_norm} = \text{SNM}_{\text{hold}} / \text{SNM}_{\text{hold, ref}}$
   - $\text{snm\_read\_norm} = \text{SNM}_{\text{read}} / \text{SNM}_{\text{read, ref}}$
   - Dimensionless internal ratios: $\text{read\_write\_delay\_ratio}$, $\text{snm\_ratio}$, $\text{dv\_bl\_vdd\_ratio}$
-- **Integrity:** `converged` (1 if valid, 0 if severe fault caused non-monotonic DC curve)
+- **Row status.** `converged` is the stored row flag. The dataset has 1,327 rows marked converged and 23 marked nonconverged. Rows marked converged can retain extraction fallbacks.
 
 ---
 
-## 7. Experimental Verification & Physical Sanity
 
-The generated dataset was validated using [`scripts/verify_dataset_physics.py`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/scripts/verify_dataset_physics.py):
+## 7. Electrical Measurements and Dispersion
 
-### 7.1 Semiconductor Thermal Scaling ($I_{\text{ddq}}$ vs $T$)
-Subthreshold leakage scales with temperature (sampled at nominal TT, $V_{DD} = 1.0\,\text{V}$):
-- $-40^\circ\text{C}$: $0.0062\,\mu\text{A}$ ($6.2\,\text{nA}$)
-- $0^\circ\text{C}$: $0.0048\,\mu\text{A}$ ($4.8\,\text{nA}$)
-- $27^\circ\text{C}$ (Nominal): $0.0042\,\mu\text{A}$ ($4.2\,\text{nA}$)
-- $75^\circ\text{C}$: $0.8553\,\mu\text{A}$ ($855.3\,\text{nA}$)
-- $125^\circ\text{C}$: $0.5020\,\mu\text{A}$ ($502.0\,\text{nA}$, $119.5\times$ increase over nominal)
+Use the [checkpoint report](reports/validation_checkpoints_report.md) for the stored nominal values and [the SNM reference check](validation/snm_manual_check/results.md) for the nominal DC sweeps. [The exploratory feature script](scripts/verify_dataset_physics.py) groups the saved measurements by operating conditions and fault parameters.
 
-*(Note: As documented in the paper's limitations, sampled standby current trajectories exhibit non-monotonicities across certain operating settings in uncalibrated Level-1 SPICE decks; values reflect extracted transient current at strobe rather than an idealized DC diode law).*
+### 7.1 Sampled standby current
 
-### 7.2 Gate Overdrive Scaling ($t_{\text{write}}$ vs $V_{DD}$)
-Drive current scales with overdrive ($V_{GS} - V_{th}$ at TT, $27^\circ\text{C}$):
-- $0.9\,\text{V}$: $71.8\,\text{ps}$ (slowest switching)
-- $1.0\,\text{V}$: $60.2\,\text{ps}$ (nominal)
-- $1.1\,\text{V}$: $52.8\,\text{ps}$ (fastest switching)
+At TT and 1.0 V, the stored healthy current is 6.2, 4.8, 4.2, 855.3, and 502.0 nA for $-40$, $0$, $27$, $75$, and $125^\circ$C, respectively. These samples come from the saved hold transient at 20 ns. The nonmonotonic trend and uncalibrated Level-1 models limit their interpretation as leakage measurements.
 
-### 7.3 Fault Monotonicity
-- **Class 1 (Resistive Open):** $t_{\text{write}}$ increases monotonically from $61.57\,\text{ps}$ ($200\,\Omega$) to $105.99\,\text{ps}$ ($10\,\text{k}\Omega$).
-- **Class 2 (Bridging):** Leakage spikes inversely with resistance ($18.6\,\mu\text{A}$ at $500\,\Omega$ down to $3.8\,\mu\text{A}$ at $10\,\text{k}\Omega$); SNM and bistability collapse.
-- **Class 3 ($V_{th}$ Drift Storage):** Hold SNM degrades monotonically from $0.443\,\text{V}$ ($5\%$) to $0.406\,\text{V}$ ($30\%$).
-- **Class 4 ($V_{th}$ Drift Access):** Read sense delay $t_{\text{sense}}$ increases from $64.52\,\text{ps}$ to $87.85\,\text{ps}$; Hold SNM remains strictly invariant ($0.441\,\text{V}$), cleanly decoupling Class 3 from Class 4.
+### 7.2 Nominal timing and read measurements
+
+At TT, 1.0 V, and 27 °C, the stored healthy row gives a 224.8 mV mean bitline differential at the 2.15 ns strobe, 60.0 ps mean sense delay, 125.0 mV maximum read bump, and 60.2 ps mean write delay.
+
+### 7.3 Fault signatures and numerical fallbacks
+
+Series resistance changes the access path, a bridge couples the storage nodes, and threshold-magnitude shifts alter storage or access device drive. The benchmark measures timing, swing, current, and SNM responses to these injections. Interpret very long delays and zero SNM alongside the row flags and the fallback policy in Section IV-C of the manuscript.
 
 ### 7.4 Dispersion Reduction Across 45 PVT Corners
-The impact of physics-based normalization against a co-located healthy reference cell across all 45 PVT corners (from Table II of the research paper):
+Table II compares sample CVs before and after normalization against the matched simulated references. The fixed-open columns use rows marked converged for each injection site.
 
 | Feature | Healthy All (45 Corners)<br>Raw CV $\to$ Normalized CV | Healthy Converged (43 Corners)<br>Raw CV $\to$ Normalized CV | 5k$\Omega$ Open $M_5$ (43 Corners)<br>Raw CV $\to$ Normalized CV | 5k$\Omega$ Open $M_6$ (41 Corners)<br>Raw CV $\to$ Normalized CV |
 |---|:---:|:---:|:---:|:---:|
@@ -301,20 +277,17 @@ The impact of physics-based normalization against a co-located healthy reference
 
 ## 8. Machine Learning Results & Cross-PVT Validation
 
-### 8.1 Protocol 1: Standard Split (In-Distribution Nominal Corner `C_27C_1P0V`)
-Stratified 80/20 train/test split on nominal data with automated assertion verifying zero sample ID overlap:
-- **Random Forest:** **$100.0\%$ Accuracy** ($F_1 = 1.000$)
-- **HistGradientBoosting:** **$100.0\%$ Accuracy** ($F_1 = 1.000$)
-- **Linear SVM:** **$100.0\%$ Accuracy** ($F_1 = 1.000$)
-- **Logistic Regression:** **$100.0\%$ Accuracy** ($F_1 = 1.000$)
-- **Non-ML 3-$\sigma$ Baseline:** $83.33\%$ Accuracy (Control)
 
----
+### 8.1 Development pipeline and historical audit
 
-### 8.2 Protocol 2: Leave-One-Corner-Out (LOCO across all 45 Corners)
+[src/ml_pipeline.py](src/ml_pipeline.py) supports a nominal 80/20 split and LOCO on the supplied dataset. It runs Random Forest, HistGradientBoosting, Logistic Regression, Linear SVM, and a rule-based detector with its development feature sets. The 20 saved pickles correspond to five development models, two feature sets, and two protocols. The development comparison and LOCO summary files use those settings.
+
+The [historical 15-corner audit](reports/audit/final_comparison_table.csv) compares the original 450-row dataset with the 428- and 302-row subsets. Its original summary is preserved in [loco_summary_original_450.csv](reports/audit/loco_summary_original_450.csv).
+
+### 8.2 Manuscript benchmark across 45 corners
 Iteratively trains on 44 corners ($1,320$ samples) and tests on 1 held-out corner ($30$ samples) across all 45 PVT corners (1,350 evaluations):
 
-#### Master Empirical Results Table ([`reports/final_results/loco_summary.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/final_results/loco_summary.csv))
+#### [Saved Table III benchmark results](reports/final_results/table3_loco_benchmark.csv)
 *(Corresponds to Table III in the research paper; standard deviations reflect population standard deviation with $\mathrm{ddof}=0$)*
 
 | Model Architecture | Raw Features Accuracy<br>(Mean $\pm$ Std) [Min, Max] | Normalized Feature Set<br>(Mean $\pm$ Std) [Min, Max] | Generalization<br>Gain (pp) | Worst-Corner Floor<br>(Raw $\to$ Normalized) |
@@ -323,77 +296,48 @@ Iteratively trains on 44 corners ($1,320$ samples) and tests on 1 held-out corne
 | **HistGradientBoosting** | $77.56\% \pm 15.21\%$ [40.0%, 100.0%] | **$99.41\% \pm 2.14\%$** [**86.7%**, 100.0%] | **$+21.85\,\text{pp}$** | $40.00\% \to \mathbf{86.67\%}$ *(40/45 perfect corners)* |
 | **Decision Tree** | $73.56\% \pm 12.42\%$ [36.7%, 96.7%] | **$98.44\% \pm 5.60\%$** [**63.3%**, 100.0%] | **$+24.89\,\text{pp}$** | $36.67\% \to \mathbf{63.33\%}$ |
 | **Logistic Regression** | $80.59\% \pm 9.14\%$ [60.0%, 96.7%] | **$86.89\% \pm 7.08\%$** [**60.0%**, 96.7%] | **$+6.30\,\text{pp}$** | $60.00\% \to \mathbf{60.00\%}$ |
-| **Non-ML Baseline ($3\sigma$)** | $3.33\% \pm 4.21\%$ | $3.33\% \pm 4.21\%$ | Control | Rule-based failure |
 
-- **Ablation Model B' (Parametric-only, 8 Ratios, No Functional Pass/Fail Flags):** Achieves **$99.48\%$** LOCO accuracy and a **$90.00\%$** worst-case corner floor, confirming that high diagnostic accuracy is driven entirely by continuous physical degradation signatures rather than binary functional flags.
-- **Leave-One-Severity-Out (LOSO) Generalization on Faulty Observations (Table V in paper, 225 fault rows per rank):**
-  - Incipient boundary faults ($S_1$ holdout): **$88.89\%$** ($200/225$ correct; 21 of the 25 misclassifications occur on the weakest $200\,\Omega$ opens which score $76.67\%$; the earlier reported $90.74\%$ included the 45 healthy rows in the test set).
-  - Interior faults ($S_2$ holdout): **$99.11\%$**
-  - Interior faults ($S_3$ holdout): **$99.11\%$**
-  - Interior faults ($S_4$ holdout): **$99.56\%$**
-  - Severe boundary faults ($S_5$ holdout): **$100.00\%$**
-  - Severe boundary faults ($S_6$ holdout, 180 rows): **$100.00\%$**
-- **Joint PVT + Severity Holdout:** Evaluated on 450 unseen corner-severity combinations, achieving **$99.11\%$** accuracy.
 
-#### Physical Rationale for the Generalization Collapse on Raw Features:
-Under extreme corners (e.g. low supply $0.9\,\text{V}$ and high temperature $125^\circ\text{C}$), raw feature accuracy drops to **$36.7\%$–$50.0\%$** because:
-1. Low supply voltage ($0.9\,\text{V}$) reduces gate overdrive and slows down healthy cell switching, causing raw classifiers to misclassify benign healthy cells as resistive opens.
-2. High temperature ($125^\circ\text{C}$) raises subthreshold leakage, causing raw classifiers to misclassify healthy cells as bridging faults.
-3. Physics-normalized invariant features cancel out these common-mode supply, thermal, and process variations, maintaining **$99.33\%$ to $99.41\%$ accuracy across all 45 corners**.
+The manuscript compares two 12-input sets with the same four status flags. The raw set adds eight electrical measurements. The normalized set adds five ratios to the matched healthy reference and three internal ratios.
 
----
+- **Table IV.** For Random Forest, the eight ratios alone give 99.48% LOCO accuracy and a 90.00% worst-corner accuracy. Electrical features can carry fallback or functional-failure information.
+- **Table V.** The leave-one-severity-out (LOSO) experiment holds out parameter ranks and scores faulty observations. $S_1$ yields 200/225 (88.89%), and the weakest tested opens score 69/90 (76.67%). The joint corner and parameter holdout yields 446/450 (99.11%).
 
-### 8.3 Data Policy Sensitivity Analysis ([`reports/audit/`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/audit/))
-In [`reports/audit/final_comparison_table.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/audit/final_comparison_table.csv) and Section 10 of the research paper:
-- **Full 45-Corner Converged Rows ($N=1,327$, excluding 23 nonconverged rows before splitting):**
-  - **Random Forest Raw:** **$75.28\%$**
-  - **Random Forest Invariant:** **$99.70\%$** (43 of 45 corners achieve 100% accuracy, only 4 classification errors total across all 1,327 samples).
-- **Preliminary Mid-Semester 15-Corner Audit (`clean_main_428`, 428 rows excluding 22 transient timeouts from 450 initial rows):**
-  - **Random Forest:** Reaches **$100.0\%$ accuracy in every single held-out corner** ($1.000 \pm 0.000$).
-  - **HistGradientBoosting:** Reaches **$99.54\% \pm 1.78\%$**.
-  - **Linear SVM:** Reaches **$88.91\% \pm 8.83\%$**.
-  - **Logistic Regression:** Reaches **$87.97\% \pm 8.28\%$**.
+### 8.3 Sensitivity to simulation row flags
 
----
+Filtering out the 23 rows marked nonconverged before splitting leaves 1,327 rows. Random Forest scores 75.28% with raw features and 99.70% with normalized inputs. The retained rows include the flagged healthy read-SNM zero at TT, 0.9 V, and 0 °C. Omitting the entire affected corner before splitting yields 99.32% for the normalized model across 44 corners.
+
+Recompute these checks with [reproduce_manuscript_checks.py](scripts/reproduce_manuscript_checks.py) using `--rf`.
 
 ### 8.4 Explainability & Feature Attribution via TreeExplainer SHAP
-To interpret the decision boundaries of the best invariant-feature Random Forest model, we computed SHAP (SHapley Additive exPlanations) values across all 1,350 samples and invariant features (Table VI in the research paper):
+Table VI reports mean absolute Tree SHAP values for the Random Forest fitted on all 1,350 rows with the normalized input set. The global value averages over rows and all five class outputs.
 
-#### Global Feature Importance ([`reports/final_results/shap_feature_importance.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/final_results/shap_feature_importance.csv)):
-1. **`t_write_norm` (Mean $|SHAP| = 0.0789$):** Primary discriminator for writeability faults, separating Class 1 (Resistive Opens, $0.0988$) and Class 3 (Storage Inverter $V_{th}$ Drift, $0.1078$).
-2. **`dv_bl_norm` (Mean $|SHAP| = 0.0776$):** Primary driver for read access degradation (Class 1, $0.1414$ and Class 4, $0.0906$), as bitline discharge is heavily governed by access pass-gate impedance.
-3. **`snm_read_norm` (Mean $|SHAP| = 0.0567$):** Strong discriminator for access transistor degradation and read stability (Class 1, $0.1245$ and Class 4, $0.1159$).
-4. **`dv_bl_vdd_ratio` (Mean $|SHAP| = 0.0269$):** Dimensionless ratio of bitline swing to supply voltage; key contributor to Class 2 (Bridging, $0.0666$).
-5. **`snm_hold_norm` (Mean $|SHAP| = 0.0263$):** Decouples internal storage inverter drift (Class 3, $0.0650$) from access transistor drift (Class 4, $0.0341$).
-6. **`iddq_norm` (Mean $|SHAP| = 0.0249$):** Describes sampled supply-current signatures. Attribution is largest for **Class 3 ($V_{th}$ Storage Pair Drift at $0.0549$)**, while Class 2 (Bridging Shorts) is dominated by write timing ($0.0750$) and bitline collapse (`dv_bl_vdd_ratio` $0.0666$) rather than IDDQ ($0.0080$).
-
----
-
-## 9. Publication Figures & Visual Assets
-
-All figures are rendered at 300 DPI and stored in [`reports/figures/`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/figures/):
-1. **`fig1_feature_dispersion_comparison.png`:** Standardized Z-score boxplots for healthy cells across all 45 PVT corners, demonstrating the collapse of spread in Hold SNM, bitline discharge voltage, and write delay.
-2. **`fig1b_fault_dispersion.png`:** Cross-corner dispersion boxplots for each individual fault class (Open, Bridge, $V_{th}$ Storage, $V_{th}$ Access), showing dispersion reduction across all fault classes.
-3. **`fig2_cross_pvt_loco_accuracy.png`:** Grouped bar chart comparing LOCO accuracy (Mean $\pm$ 1 Std Dev) between Raw and Invariant features across all 4 ML models.
-4. **`fig3_rf_pvt_corner_heatmap.png`:** Per-corner LOCO accuracy heatmap across all 45 PVT corners for Random Forest.
-5. **`fig3b_rf_grid.png`:** $3 \times 5$ temperature-voltage grid representation of Random Forest generalization accuracy.
-6. **`fig4_shap_summary.png`:** Global feature importance bar chart based on mean $|SHAP|$ values across invariant features.
-7. **`fig4b_shap_class_importance.png`:** SHAP feature importance disaggregated by fault class, demonstrating the physical basis for each diagnostic prediction.
-8. **`reports/audit/final_comparison_figure.png`:** Comparative accuracy progression across row filtering policies.
+#### [Global Tree SHAP values](reports/final_results/table5_shap_importance.csv)
+1. **`t_write_norm`** (0.0789). Ranks first globally.
+2. **`dv_bl_norm`** (0.0776). Ranks second globally.
+3. **`snm_read_norm`** (0.0567). Ranks third, including after the affected corner is omitted and the model refitted.
+4. **`dv_bl_vdd_ratio`** (0.0269). The bitline-swing ratio to supply voltage.
+5. **`snm_hold_norm`** (0.0263). The normalized hold margin.
+6. **`iddq_norm`** (0.0249). The normalized sampled standby current.
 
 ---
 
-## 10. Automated Test Suite Summary
 
-All 62 unit tests pass under `pytest` (`62 passed in 10.73s`):
-- `tests/test_fault_injection.py` (18 tests): Topology, symmetry, minimal diffs, model card isolation.
-- `tests/test_testbench_composer.py` (4 tests): Deck assembly, dangling node detection.
-- `tests/test_pvt_composition.py` (3 tests): PVT voltage, temperature scaling, and DC sweep sizing.
-- `tests/test_simulation_runner.py` (6 tests): Batch execution, DC integrity validation, stem uniqueness.
-- `tests/test_feature_extractor.py` (4 tests): Dynamic delay, voltage, and IDDQ extraction.
-- `tests/test_snm_composition.py` (5 tests): Core duplication with `_c2` suffix, stimulus validation.
-- `tests/test_snm_extraction.py` (7 tests): Pure NumPy inscribed square algorithm, reference decks.
-- `tests/test_snm_features.py` (3 tests): Full-pipeline SNM extraction, non-monotonic flagging.
-- `tests/test_dataset_generator.py` (8 tests): Grid construction, sample generation, fallback bounding.
-- `tests/test_baseline_detector.py` (3 tests): Non-ML $3\sigma$ threshold detection.
-- `tests/test_ml_pipeline.py` (4 tests): Model instantiation, metric computation, Standard Split, and LOCO protocols.
+## 9. Manuscript figures
+
+The manuscript uses the root-level figures below. Artifacts in [reports/figures](reports/figures/) and [reports/audit](reports/audit/) also include development figures.
+
+| Paper figure | Asset and content |
+|---|---|
+| 1 | [SRAM schematic](6T_SRAM_LTSPICE.jpg) |
+| 2 | [Nominal hold butterfly curve and inscribed squares](snm_butterfly_diagram.png) |
+| 3 | [Cross-corner CV for the fixed 5 kΩ opens](fig1_feature_dispersion_comparison.png) |
+| 4 | [Pooled and worst-corner LOCO accuracy for four models](fig2_cross_pvt_loco_accuracy.png) |
+| 5 | [Random Forest accuracy at 45 held-out corners](fig3_rf_pvt_corner_heatmap.png) |
+| 6 | [Pooled LOCO confusion matrix](fig5_confusion_matrix.png) |
+| 7 | [Row-wise feature perturbation and refitting](fig6_reference_mismatch_sensitivity.png) |
+| 8, 9 | [Global](fig4_shap_summary.png) and [per-class](fig4b_shap_class_importance.png) Tree SHAP |
+
+## 10. Automated checks
+
+Run `python -m pytest` for the test suite. The LTspice integration cases need a configured simulator path. Run `python scripts/verify_checkpoints.py` to regenerate the [validation report](reports/validation_checkpoints_report.md) from the current dataset, nominal deck composer, and saved Table III results. The [manuscript reproduction script](scripts/reproduce_manuscript_checks.py) computes Table II and accepts `--rf` and `--shap` for the model checks.

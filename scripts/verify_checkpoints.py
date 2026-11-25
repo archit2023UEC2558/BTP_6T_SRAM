@@ -1,297 +1,201 @@
-"""Automated Verification of Section 8 Checkpoints and Definition of Done.
-
-Implements and validates all 7 checkpoints defined in Section 8 of PLAN (3).md:
-1. Healthy cell behavior
-2. SNM script accuracy
-3. Fault netlist validity
-4. Baseline sanity
-5. Dataset integrity
-6. Split leakage
-7. Result consistency
-
-Outputs a formal verification report to reports/validation_checkpoints_report.md.
-"""
+"""Regenerate the validation summary for the paper's 45-corner benchmark."""
 
 from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
+
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.snm_extraction import lobe_sides, snm_from_curves
 from src.baseline_detector import BaselineRuleDetector
-from src.ml_pipeline import (
-    load_dataset,
-    RAW_FEATURES,
-    INVARIANT_FEATURES,
-    run_standard_split_protocol,
-    run_leave_one_corner_out_protocol,
-)
+from src.generate_dataset import HEALTHY_CORE_PATH, OPERATIONS, create_fault_cell, get_default_fault_specs
+from src.ml_pipeline import load_dataset
+from src.snm_extraction import lobe_sides
+from src.testbench_composer import compose_testbench
+from src.utils import load_cell_core
 
 REPORT_PATH = ROOT / "reports" / "validation_checkpoints_report.md"
+BENCHMARK_PATH = ROOT / "reports" / "final_results" / "table3_loco_benchmark.csv"
+NOMINAL_CORNER = "TT_C_27C_1P0V"
+CORNERS = 45
+CONFIGURATIONS_PER_CORNER = 30
+PAPER_MODELS = ("Random Forest", "HistGradientBoosting", "Decision Tree", "Logistic Regression")
 
 
-def check_1_healthy_cell():
-    """Checkpoint 1: Healthy cell behavior (manual + automated inspection)."""
-    # Nominal healthy metrics from golden benchmark
-    res = {
-        "hold_vdd": 1.0,
-        "hold_retention": "PASS (V(Q)=1.0V, V(Qb)=0.0V)",
-        "read_stability": "PASS (non-destructive, dv_bl = 235.4 mV)",
-        "write_flip": "PASS (symmetric write 1/0, t_write = 62.2 ps)",
+def check_healthy_cell(data: pd.DataFrame):
+    nominal = data.loc[data["corner_id"].eq(NOMINAL_CORNER) & data["fault_class"].eq(0)]
+    if len(nominal) != 1:
+        return False, {"Nominal healthy rows": len(nominal)}
+    row = nominal.iloc[0]
+    checks = ["hold_pass", "read_stable_pass", "write_pass", "is_bistable"]
+    return bool(row[checks].eq(1).all()), {
+        "Source": f"Stored observation {row['sample_id']} at {NOMINAL_CORNER}",
+        "Hold, read stability, write, bistability": ", ".join(str(int(row[flag])) for flag in checks),
+        "Sampled standby current at 20 ns": f"{1000 * row['i_ddq_uA']:.1f} nA",
+        "Mean bitline differential at 2.15 ns": f"{row['dv_bl_strobe_mV']:.1f} mV",
+        "Mean sense delay": f"{row['t_sense_ps']:.1f} ps",
+        "Mean delay across the two write directions": f"{row['t_write_ps']:.1f} ps",
     }
-    passed = True
-    return passed, res
 
 
-def check_2_snm_script_accuracy():
-    """Checkpoint 2: SNM script accuracy vs golden measurements."""
-    # Using reference curve data
-    ref_read_path = ROOT / "circuits" / "reference" / "snm_read_healthy.net"
-    assert ref_read_path.exists(), "Reference deck missing"
-    
-    # Sigmoid test for mathematical accuracy
-    v = np.linspace(0, 1, 1001)
-    k = 30.0
-    vm = 0.50
-    vq = 1.0 / (1.0 + np.exp(-k * (v - vm)))
-    vqb = 1.0 / (1.0 + np.exp(-k * (v - vm)))
-    l1, l2 = lobe_sides(v, vqb, vq, v, vdd=1.0)
-    snm = min(l1, l2)
-    
-    error = abs(l1 - l2)
-    passed = bool(error < 0.001 and snm > 0.30)
-    res = {
-        "calculated_snm_v": round(float(snm), 4),
-        "lobe_asymmetry_v": round(float(error), 6),
-        "accuracy_criterion": "error < 1.0 mV (PASS)",
+def check_snm_extraction():
+    """Exercise the extractor against a symmetric piecewise-linear VTC pair."""
+    sweep = np.linspace(0.0, 1.0, 1001)
+    curve = np.interp(sweep, [0.0, 0.4, 0.6, 1.0], [1.0, 1.0, 0.0, 0.0])
+    # Each rail-to-transition interval supports a 0.4 V square. The sloped
+    # segment bounds candidate squares beyond that side length.
+    lobes = lobe_sides(sweep, curve, curve, sweep, vdd=1.0)
+    expected = 0.4
+    max_error = max(abs(lobe - expected) for lobe in lobes)
+    return max_error < 0.001, {
+        "Synthetic lobe sides": ", ".join(f"{1000 * lobe:.2f} mV" for lobe in lobes),
+        "Expected side length": f"{1000 * expected:.2f} mV per lobe",
+        "Maximum deviation": f"{1000 * max_error:.6f} mV (tolerance 1 mV)",
+        "Nominal LTspice measurements": "See [the manual SNM check](../validation/snm_manual_check/results.md)",
     }
-    return passed, res
 
 
-def check_3_fault_netlist_validity():
-    """Checkpoint 3: Fault netlist validity (syntax & node mapping)."""
-    core_path = ROOT / "circuits" / "core" / "cell_core_healthy.net"
-    assert core_path.exists()
-    
-    with open(core_path, "r") as f:
-        lines = f.readlines()
-    
-    # Verify transistor node mapping and terminal rules
-    transistors = [l for l in lines if l.startswith("M")]
-    assert len(transistors) == 6
-    for t in transistors:
-        tokens = t.split()
-        d, g, s = tokens[1], tokens[2], tokens[3]
-        assert g != d, f"Gate equals drain in {t}"
-    
-    res = {
-        "healthy_transistor_count": 6,
-        "terminal_rule_check": "Gate != Drain for all M1-M6 (PASS)",
-        "all_fault_types_simulatable": "PASS",
+def check_fault_deck_assembly():
+    """Build the nominal healthy and fault decks using the production composer."""
+    core = load_cell_core(str(HEALTHY_CORE_PATH))
+    specs = get_default_fault_specs()
+    with TemporaryDirectory(prefix="sram-checkpoints-") as directory:
+        work = Path(directory)
+        for index, spec in enumerate(specs):
+            core_path = work / f"core_{index}.net"
+            create_fault_cell(spec, core, str(core_path))
+            for operation in OPERATIONS:
+                deck = work / f"case_{index}_{operation}.net"
+                compose_testbench(str(core_path), operation, str(deck), vdd=1.0, temperature_c=27)
+    return len(specs) == CONFIGURATIONS_PER_CORNER, {
+        "Nominal configurations assembled": len(specs),
+        "Operation decks assembled": len(specs) * len(OPERATIONS),
+        "Scope": "Netlist generation and composer node validation",
     }
-    return True, res
 
 
-def check_4_baseline_sanity():
-    """Checkpoint 4: Baseline sanity (low false-positive rate on healthy cells)."""
-    df = load_dataset()
-    h_df = df[df["fault_class"] == 0].copy()
-    
-    detector = BaselineRuleDetector(n_sigma=3.0)
-    detector.fit(h_df)
-    preds = detector.predict(h_df)
-    
-    fp_rate = float(np.mean(preds == 1))
-    passed = bool(fp_rate <= 0.15)  # Expected low false positive rate
-    res = {
-        "healthy_samples_tested": len(h_df),
-        "false_positive_rate": f"{fp_rate * 100:.1f}%",
-        "thresholds_derived": list(detector.thresholds_.keys()),
+def check_baseline_sanity(data: pd.DataFrame):
+    healthy = data.loc[data["fault_class"].eq(0)]
+    if healthy.empty:
+        return False, {"Healthy rows": 0}
+    detector = BaselineRuleDetector(n_sigma=3.0).fit(healthy)
+    false_alarm_rate = float(np.mean(detector.predict(healthy) == 1))
+    return false_alarm_rate <= 0.15, {
+        "Healthy fit and screening rows": len(healthy),
+        "In-sample false-positive rate": f"{false_alarm_rate:.2%} (threshold 15%)",
+        "Thresholds fitted": ", ".join(detector.thresholds_),
     }
-    return passed, res
 
 
-def check_5_dataset_integrity():
-    """Checkpoint 5: Dataset integrity (zero unexplained convergence failures, zero NaNs)."""
-    df = load_dataset()
-    total_samples = len(df)
-    null_count = int(df.isnull().sum().sum())
-    inf_count = int(np.isinf(df.select_dtypes(include=np.number)).sum().sum())
-    
-    flags_path = ROOT / "logs" / "convergence_flags.csv"
-    assert flags_path.exists()
-    flags_df = pd.read_csv(flags_path)
-    
-    passed = (null_count == 0 and inf_count == 0 and total_samples == 450)
-    res = {
-        "total_dataset_rows": total_samples,
-        "null_values": null_count,
-        "infinite_values": inf_count,
-        "logged_convergence_flags": len(flags_df),
-        "integrity_status": "100% Complete & Clean (PASS)",
-    }
-    return passed, res
-
-
-def check_6_split_leakage():
-    """Checkpoint 6: Split leakage (automated assertion of zero sample_id overlap)."""
-    df = load_dataset()
-    nom_df = df[df["corner_id"] == "C_27C_1P0V"].copy()
-    
-    n_classes = nom_df["fault_class"].nunique()
-    test_size = 0.20
-    stratify = nom_df["fault_class"] if (len(nom_df) * test_size >= n_classes and nom_df["fault_class"].value_counts().min() >= 2) else None
-    
-    train_df, test_df = train_test_split(
-        nom_df,
-        test_size=test_size,
-        random_state=42,
-        stratify=stratify,
+def check_dataset_integrity(data: pd.DataFrame):
+    counts = data.groupby("corner_id").size()
+    null_count = int(data.isna().sum().sum())
+    inf_count = int(np.isinf(data.select_dtypes(include=np.number)).sum().sum())
+    duplicate_ids = int(data["sample_id"].duplicated().sum())
+    converged = data["converged"].eq(1)
+    passed = (
+        len(counts) == CORNERS
+        and counts.eq(CONFIGURATIONS_PER_CORNER).all()
+        and len(data.columns) == 34
+        and null_count == inf_count == duplicate_ids == 0
+        and data["converged"].isin([0, 1]).all()
     )
-    
-    train_ids = set(train_df["sample_id"])
-    test_ids = set(test_df["sample_id"])
-    overlap_std = train_ids.intersection(test_ids)
-    
-    # Also verify LOCO splits across all 15 corners
-    loco_overlaps = []
-    for corner in df["corner_id"].unique():
-        train_loco = set(df[df["corner_id"] != corner]["sample_id"])
-        test_loco = set(df[df["corner_id"] == corner]["sample_id"])
-        loco_overlaps.append(len(train_loco.intersection(test_loco)))
-        
-    total_loco_overlap = sum(loco_overlaps)
-    passed = (len(overlap_std) == 0 and total_loco_overlap == 0)
-    res = {
-        "nominal_train_samples": len(train_df),
-        "nominal_test_samples": len(test_df),
-        "nominal_overlap": len(overlap_std),
-        "loco_15_corners_overlap": total_loco_overlap,
-        "data_leakage_status": "ZERO LEAKAGE ACROSS ALL PROTOCOLS (PASS)",
+    return passed, {
+        "Dataset rows, columns, corners": f"{len(data):,}, {len(data.columns)}, {len(counts)}",
+        "Missing or infinite entries": null_count + inf_count,
+        "Duplicate sample IDs": duplicate_ids,
+        "Rows marked converged": f"{converged.sum():,}",
+        "Rows marked nonconverged": int((~converged).sum()),
+        "Interpretation": "Completeness and row-status checks on the stored data. The convergence flag can retain a rejected read-SNM sweep.",
     }
-    return passed, res
 
 
-
-def check_7_result_consistency():
-    """Checkpoint 7: Result consistency (Invariant > Raw across all 4 models)."""
-    summary_path = ROOT / "reports" / "final_results" / "loco_summary.csv"
-    assert summary_path.exists(), "loco_summary.csv not found"
-    
-    df = pd.read_csv(summary_path)
-    models = ["RandomForest", "HistGradientBoosting", "LinearSVM", "LogisticRegression"]
-    
-    results = {}
-    consistent = True
-    for m in models:
-        raw_row = df[(df["model"] == m) & (df["feature_set"] == "raw")]
-        inv_row = df[(df["model"] == m) & (df["feature_set"] == "invariant")]
-        
-        raw_acc = float(raw_row["mean"].values[0])
-        inv_acc = float(inv_row["mean"].values[0])
-        gain = inv_acc - raw_acc
-        
-        results[m] = {
-            "raw_loco_mean": f"{raw_acc*100:.2f}%",
-            "invariant_loco_mean": f"{inv_acc*100:.2f}%",
-            "gain": f"+{gain*100:.2f}%",
-        }
-        if inv_acc <= raw_acc:
-            consistent = False
-
-    return consistent, results
+def check_split_overlap(data: pd.DataFrame):
+    nominal = data.loc[data["corner_id"].eq(NOMINAL_CORNER)]
+    if len(nominal) != CONFIGURATIONS_PER_CORNER:
+        return False, {"Nominal rows": len(nominal)}
+    train, test = train_test_split(nominal, test_size=0.20, random_state=42)
+    nominal_overlap = len(set(train["sample_id"]) & set(test["sample_id"]))
+    corner_ids = data["corner_id"]
+    overlaps = []
+    for corner in corner_ids.unique():
+        held_out = corner_ids.eq(corner)
+        train_ids = set(data.loc[~held_out, "sample_id"])
+        test_ids = set(data.loc[held_out, "sample_id"])
+        overlaps.append(len(train_ids & test_ids))
+    loco_overlap = sum(overlaps)
+    return nominal_overlap == loco_overlap == 0, {
+        "Nominal split train and test rows": f"{len(train)}, {len(test)}",
+        "Nominal split sample ID overlap": nominal_overlap,
+        "LOCO folds checked": len(overlaps),
+        "Total LOCO sample ID overlap": loco_overlap,
+    }
 
 
-def main():
-    print("=================================================================")
-    print("   EXECUTING SECTION 8 VALIDATION CHECKPOINTS AUDIT")
-    print("=================================================================")
+def check_paper_results():
+    summary = pd.read_csv(BENCHMARK_PATH).set_index("Model")
+    if not summary.index.is_unique or set(summary.index) != set(PAPER_MODELS):
+        return False, {"Models found": ", ".join(summary.index)}
+    gain = 100 * (summary["Inv_Acc"] - summary["Raw_Acc"])
+    passed = (
+        gain.gt(0).all()
+        and np.allclose(summary["Gain_Pct"], gain)
+        and summary["Perfect_Corners"].str.endswith(f"/{CORNERS}").all()
+    )
+    details = {"Source": "[Stored Table III results](final_results/table3_loco_benchmark.csv)"}
+    for model in PAPER_MODELS:
+        row = summary.loc[model]
+        details[model] = (
+            f"Raw {row['Raw_Acc']:.2%}, normalized {row['Inv_Acc']:.2%}, "
+            f"gain {gain[model]:+.2f} pp, worst corner {row['Raw_Min']:.2%} to {row['Inv_Min']:.2%}"
+        )
+    return passed, details
 
-    checkpoints = [
-        ("Checkpoint 1: Healthy Cell Behavior", check_1_healthy_cell),
-        ("Checkpoint 2: SNM Script Accuracy", check_2_snm_script_accuracy),
-        ("Checkpoint 3: Fault Netlist Validity", check_3_fault_netlist_validity),
-        ("Checkpoint 4: Baseline Sanity", check_4_baseline_sanity),
-        ("Checkpoint 5: Dataset Integrity", check_5_dataset_integrity),
-        ("Checkpoint 6: Split Leakage", check_6_split_leakage),
-        ("Checkpoint 7: Result Consistency", check_7_result_consistency),
+
+def main() -> int:
+    data = load_dataset()
+    checks = [
+        ("Nominal healthy observation", check_healthy_cell(data)),
+        ("Synthetic SNM extraction", check_snm_extraction()),
+        ("Fault deck assembly", check_fault_deck_assembly()),
+        ("Development baseline sanity", check_baseline_sanity(data)),
+        ("Dataset completeness", check_dataset_integrity(data)),
+        ("Sample ID overlap", check_split_overlap(data)),
+        ("Stored paper result consistency", check_paper_results()),
     ]
-
-    report_lines = [
-        "# Formal Verification Report: Section 8 Checkpoints and Definition of Done",
+    lines = [
+        "# Validation checkpoints for the 45-corner benchmark",
         "",
-        "**Project:** BTP — Automated SRAM Fault Injection & Diagnosis  ",
-        "**Verification Engine:** Automated Multi-Stage Checkpoint Audit  ",
-        "**Status:** All 7 Checkpoints Evaluated and Passed  ",
+        "Regenerate this report with the [checkpoint script](../scripts/verify_checkpoints.py).",
+        "The checks use saved data and assemble nominal testbenches in a temporary directory.",
         "",
-        "---",
-        "",
-        "## Summary Table",
-        "",
-        "| Checkpoint | Scope | Definition of Done Check | Status |",
-        "|---|---|---|:---:|",
+        "| Checkpoint | Outcome |",
+        "|---|---|",
     ]
+    for name, (passed, _) in checks:
+        result = "PASS" if passed else "FAIL"
+        lines.append(f"| {name} | {result} |")
+        print(f"[{result}] {name}")
+    for name, (_, details) in checks:
+        lines.extend(["", f"## {name}", ""])
+        lines.extend(f"- **{key}** — {value}" for key, value in details.items())
 
-    all_passed = True
-    detailed_sections = []
-
-    for name, fn in checkpoints:
-        passed, details = fn()
-        status_str = "**PASS**" if passed else "**FAIL**"
-        if not passed:
-            all_passed = False
-        
-        print(f"[{'PASS' if passed else 'FAIL'}] {name}")
-        
-        # Add to summary table
-        short_name = name.split(":")[1].strip()
-        report_lines.append(f"| **{short_name}** | System-level | Verified against criteria | {status_str} |")
-        
-        # Format detailed section
-        det_md = [f"### {name}", f"- **Status:** {status_str}"]
-        for k, v in details.items():
-            if isinstance(v, dict):
-                det_md.append(f"- **{k}:**")
-                for sub_k, sub_v in v.items():
-                    det_md.append(f"  * {sub_k}: `{sub_v}`")
-            else:
-                det_md.append(f"- **{k}:** `{v}`")
-        det_md.append("")
-        detailed_sections.append("\n".join(det_md))
-
-    report_lines.append("")
-    report_lines.append("---")
-    report_lines.append("")
-    report_lines.append("## Detailed Checkpoint Results")
-    report_lines.append("")
-    report_lines.extend(detailed_sections)
-
-    report_lines.extend([
-        "---",
+    lines.extend([
         "",
-        "## Definition of Done Verification (Section 8 Closing Gate)",
+        "Use the [manuscript reproduction script](../scripts/reproduce_manuscript_checks.py)",
+        "to recompute dispersion, Random Forest sensitivity results and SHAP values.",
         "",
-        "Per Section 8 of `PLAN (3).md`, a milestone is defined as complete when:",
-        "1. **Code runs end-to-end without manual intervention:** Confirmed (Automated pipeline executes simulation, extraction, and training end-to-end).",
-        "2. **Relevant checkpoints documented in `reports/`:** Confirmed (Documented herein and in `reports/final_results/`).",
-        "3. **Team review for plausibility:** Confirmed (Semiconductor physics scaling and LOCO generalization validated).",
-        "",
-        f"**Audit Verdict: {'ALL 7 CHECKPOINTS PASSED' if all_passed else 'CHECKPOINT FAILURES DETECTED'}**"
     ])
-
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(REPORT_PATH, "w", encoding="utf-8") as f:
-        f.write("\n".join(report_lines))
-
-    print(f"\nSaved formal verification report to: {REPORT_PATH}")
-    print(f"Overall Result: {'ALL 7 CHECKPOINTS PASSED' if all_passed else 'FAIL'}")
-    print("=================================================================")
+    REPORT_PATH.write_text("\n".join(lines), encoding="utf-8")
+    print(f"Saved {REPORT_PATH}")
+    return 0 if all(passed for _, (passed, _) in checks) else 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

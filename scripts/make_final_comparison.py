@@ -1,7 +1,7 @@
-"""Final original-vs-cleaned comparison table and figure.
+"""Reproduce the historical 15-corner original-vs-cleaned comparison.
 
 Reads (never modifies):
-  reports/final_results/loco_summary.csv      original 450-row results
+  reports/audit/loco_summary_original_450.csv original 450-row results
   reports/audit/clean_loco_summary_noSVM.csv  cleaned LOCO results (no LinearSVM)
   reports/audit/dataset_clean_main.csv, dataset_clean_strict.csv
 
@@ -14,8 +14,10 @@ probability=False (probability=True hangs on the cleaned C_75C_0P9V split).
 Predictions matched probability=True on all 900 original-data test
 predictions. It is labelled as such in the table and the figure.
 
-std = sample standard deviation (ddof=1) across held-out corners.
-Run from the project root:  set PYTHONPATH=.  &&  python scripts/make_final_comparison.py
+The historical summary uses sample standard deviation (ddof=1) across 15
+held-out corners. The manuscript's 45-corner benchmark has a separate summary
+in reports/final_results/table3_loco_benchmark.csv.
+Run with python scripts/make_final_comparison.py from the project root.
 """
 
 from pathlib import Path
@@ -33,7 +35,6 @@ from sklearn.svm import SVC
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 AUDIT_DIR = PROJECT_ROOT / "reports" / "audit"
-FINAL_DIR = PROJECT_ROOT / "reports" / "final_results"
 
 RAW_FEATURES = [
     "i_ddq_uA", "t_write_ps", "i_write_peak_mA", "dv_bl_strobe_mV",
@@ -95,7 +96,7 @@ def linear_svm_sensitivity(dataset_name, path):
 
 
 def main():
-    orig = pd.read_csv(FINAL_DIR / "loco_summary.csv")
+    orig = pd.read_csv(AUDIT_DIR / "loco_summary_original_450.csv")
     orig.insert(0, "dataset", "original_450")
     orig["n_corners"] = 15
 

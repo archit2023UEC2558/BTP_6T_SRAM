@@ -1,27 +1,11 @@
-"""
-scripts/run_authentic_45corner_evaluation.py
+"""Evaluate four classifiers on the stored 1,350-row, 45-corner PVT dataset.
 
-Executes a complete, rigorous, and 100% authentic evaluation on the genuine
-45-corner Process-Voltage-Temperature (PVT) SPICE dataset:
-  - 3 Process corners (TT, FF, SS)
-  - 15 Voltage-Temperature corners per process = 45 total corners
-  - 30 samples per corner = 1,350 total samples
-  - Total physical SPICE simulations: ~9,450 (7 testbenches per sample)
-
-Outputs:
-1. LOCO cross-PVT benchmark across all models (Table III)
-2. Controlled feature normalization ablation (Table III / Ablation)
-3. Leave-One-Severity-Out (LOSO) Interpolation vs Extrapolation (Table IV)
-4. Joint PVT and Severity Holdout (Experiment C)
-5. Tolerance to reference measurement perturbations (Section VI-D, Fig. 6)
-6. Tree SHAP feature attributions and global rankings (Table V, Fig. 4)
-7. Regenerates all publication figures:
-   - fig1_feature_dispersion_comparison.png
-   - fig2_cross_pvt_loco_accuracy.png
-   - fig3_rf_pvt_corner_heatmap.png
-   - fig4a_shap_summary.png & fig4b_shap_class_importance.png
-   - fig5_confusion_matrix.png (exact 1,350-sample counts)
-   - fig6_reference_mismatch_sensitivity.png
+Runs the leave-one-corner-out benchmark, normalization ablation, severity and
+joint holdouts, normalized-feature noise sensitivity, and Tree SHAP analysis.
+Writes CSVs under reports/final_results and plots under reports/figures, the
+project root, and Overleaf_Upload_Package. This can replace manuscript assets.
+For the corrected manuscript's dispersion, Random Forest sensitivity checks,
+and SHAP rankings without rewriting figures, use reproduce_manuscript_checks.py.
 """
 
 import os

@@ -1,4 +1,4 @@
-"""Cleaned LOCO evaluation for SRAM fault diagnosis (LinearSVM excluded).
+"""Historical 15-corner cleaned LOCO evaluation (LinearSVM excluded).
 
 Copy of scripts/rerun_loco_clean.py with ONE change in behaviour:
 LinearSVM is left out, because SVC(kernel="linear", probability=True)
@@ -13,7 +13,7 @@ Runs RandomForest, LogisticRegression, HistGradientBoosting and the
 
 Outputs are written only under reports/audit/, all with a _noSVM
 suffix so they cannot be confused with a future run that includes
-LinearSVM. Original LinearSVM results remain in reports/final_results/.
+LinearSVM. Original LinearSVM results remain in the 450-row audit summary.
 """
 
 from pathlib import Path
@@ -30,7 +30,6 @@ from src.baseline_detector import BaselineRuleDetector
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 AUDIT_DIR = PROJECT_ROOT / "reports" / "audit"
-FINAL_RESULTS_DIR = PROJECT_ROOT / "reports" / "final_results"
 
 SUFFIX = "_noSVM"
 
@@ -206,7 +205,7 @@ def summarize(results):
 
 
 def load_old_summary():
-    path = FINAL_RESULTS_DIR / "loco_summary.csv"
+    path = AUDIT_DIR / "loco_summary_original_450.csv"
     if not path.exists():
         return None
 

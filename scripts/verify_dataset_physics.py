@@ -1,4 +1,4 @@
-"""Comprehensive Physics and Data Quality Audit for SRAM Fault Dataset."""
+"""Explore stored SRAM feature distributions and data completeness."""
 
 from pathlib import Path
 import numpy as np
@@ -22,7 +22,7 @@ def main():
     print(f"Total Infinite Values:      {np.isinf(df.select_dtypes(include=np.number)).sum().sum()}")
 
     # 1. Physics: Temperature Scaling
-    print("\n--- 1. SEMICONDUCTOR SCALING: LEAKAGE VS TEMPERATURE (CLASS 0) ---")
+    print("\n--- 1. SAMPLED STANDBY CURRENT VS TEMPERATURE (CLASS 0) ---")
     h_df = df[df["fault_class"] == 0]
     t_summary = h_df.groupby("temperature_c")["i_ddq_uA"].agg(["mean", "std", "min", "max"])
     print(t_summary.round(4))
@@ -39,7 +39,7 @@ def main():
     print(f1_summary.round(2))
 
     # 4. Physics: Bridging Fault Leakage & Bistability
-    print("\n--- 4. CLASS 2 (BRIDGING) OHMIC LEAKAGE SCALING ---")
+    print("\n--- 4. CLASS 2 (BRIDGING) FEATURE SUMMARY ---")
     f2_df = df[df["fault_class"] == 2]
     f2_summary = f2_df.groupby("severity_value")[["i_ddq_uA", "snm_hold_v", "write_pass", "is_bistable"]].mean()
     print(f2_summary.round(3))
@@ -50,13 +50,13 @@ def main():
     f4_df = df[df["fault_class"] == 4]
     f3_s = f3_df.groupby("severity_value")[["snm_hold_v", "t_write_ps"]].mean().round(3)
     f4_s = f4_df.groupby("severity_value")[["snm_hold_v", "t_sense_ps"]].mean().round(3)
-    print("Class 3 (Storage pair drift) -> Monotonic SNM Degradation:")
+    print("Class 3 (storage drift), mean hold SNM and write delay by drift level:")
     print(f3_s)
-    print("Class 4 (Access pair drift) -> Sense Delay Increases, Hold SNM unaffected:")
+    print("Class 4 (access drift), mean hold SNM and sense delay by drift level:")
     print(f4_s)
 
     # 6. Feature Dispersion Reduction: Raw vs Invariant (CV %)
-    print("\n--- 6. PVT DISPERSION REDUCTION (COEFFICIENT OF VARIATION) ---")
+    print("\n--- 6. EXPLORATORY DISPERSION (POPULATION CV, ddof=0) ---")
     metrics = [
         ("i_ddq_uA", "iddq_norm"),
         ("t_write_ps", "t_write_norm"),

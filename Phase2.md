@@ -2,202 +2,58 @@
 
 **Project:** BTP — Automated 6T SRAM Fault Injection, PVT Simulation & Diagnostic Framework  
 **Document Purpose:** Complete, step-by-step handover and execution guide for collaborators taking over Phase 2.  
-**Repository State:** Phase 1 Complete (SPICE Netlists, SNM Extraction, Fault Injection, 45-Corner PVT Simulations, 1,350-Sample Dataset, 62/62 Unit Tests Passing).
+**Repository State:** The 45-corner dataset, manuscript, and reproduction script are available.
 
 ---
 
-## 1. Project Context & Current Status (Handover Summary)
 
-### 1.1 What Has Been Completed (Phase 1)
-1. **Healthy 6T SRAM Cell** ([`circuits/core/cell_core_healthy.net`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/circuits/core/cell_core_healthy.net)):
-   - Sized for 180nm CMOS ($V_{DD} = 1.0\,\text{V}$ nominal).
-   - Cell ratio $\beta = 1.33$ (read stability), pull-up ratio $\gamma = 1.50$ (writability).
-2. **Butterfly-Curve Static Noise Margin (SNM) Extraction** ([`src/snm_extraction.py`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/src/snm_extraction.py)):
-   - True largest-inscribed-square search in pure NumPy (both Hold and Read SNM).
-3. **4-Class Fault Injection Engine** ([`src/fault_injection.py`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/src/fault_injection.py)):
-   - Class 1: Resistive Open on pass-gates $M_5/M_6$ ($200\,\Omega$ to $10\,\text{k}\Omega$).
-   - Class 2: Bridging Fault $Q \leftrightarrow \bar{Q}$ ($500\,\Omega$ to $10\,\text{k}\Omega$).
-   - Class 3: $V_{th}$ Drift on cross-coupled inverters $M_1$–$M_4$ ($\pm 5\%$ to $\pm 30\%$).
-   - Class 4: $V_{th}$ Drift on access transistors $M_5/M_6$ ($\pm 5\%$ to $\pm 30\%$).
-4. **PVT Simulation Engine & Multi-Threading** ([`src/simulation_runner.py`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/src/simulation_runner.py), [`src/testbench_composer.py`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/src/testbench_composer.py)):
-   - 45-corner grid: 3 process corners (TT, FF, SS) $\times$ 3 supply voltages ($0.9\,\text{V}, 1.0\,\text{V}, 1.1\,\text{V}$) $\times$ 5 temperatures ($-40^\circ\text{C}, 0^\circ\text{C}, 27^\circ\text{C}, 75^\circ\text{C}, 125^\circ\text{C}$).
-   - 3,255 SPICE simulations executed with zero file collisions and on-the-fly binary waveform pruning.
-5. **Verified Clean Datasets** (in `data/`):
-   - [`data/sram_fault_dataset.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/data/sram_fault_dataset.csv): Master dataset (**1,350 rows $\times$ 34 columns**, **0 NaNs**).
-   - [`data/sram_fault_dataset_indist.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/data/sram_fault_dataset_indist.csv): In-distribution nominal split (30 rows, $1.0\,\text{V}, 27^\circ\text{C}$).
-   - [`data/sram_fault_dataset_ood.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/data/sram_fault_dataset_ood.csv): Out-of-distribution split (1,320 rows, 44 held-out PVT corners).
-   - [`logs/convergence_flags.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/logs/convergence_flags.csv): Traceability and DC monotonicity audit log.
-6. **Codebase Quality**:
-   - Full regression test suite passing: `pytest` passes **62/62 tests**.
+## 1. Completed simulation work
 
----
+- The [healthy core](circuits/core/cell_core_healthy.net) uses 180 nm Level-1 MOS models. The geometric cell ratio is 1.333 and the pull-up ratio is 0.667.
+- [SNM extraction](src/snm_extraction.py) searches for the largest axis-aligned square in each butterfly lobe on a finite grid with interpolation. The [nominal manual check](validation/snm_manual_check/results.md) reports 470.06 mV for hold and 263.69 mV for read.
+- [Fault injection](src/fault_injection.py) inserts a series resistance on either access path, a bridge between $Q$ and $Q_b$, or threshold drift on the storage or access devices. The six drift levels increase $|V_{\mathrm{TO}}|$ by 5%, 10%, 15%, 20%, 25%, or 30%. The storage PMOS threshold becomes more negative.
+- The benchmark uses TT, FF, and SS, $V_{DD}=0.9$, $1.0$, or $1.1$ V, and temperatures of $-40$, $0$, $27$, $75$, or $125^\circ$C. Its 45 corners contain 30 observations each. Seven operations per target give 9,450 SPICE runs, plus 315 for the matched healthy references.
+- [The saved dataset](data/sram_fault_dataset.csv) contains 1,350 rows and 34 columns. The nominal TT, 1.0 V, 27 °C export contains 30 rows. The remaining-corner export contains 1,320 rows. The full dataset includes numerical fallbacks, and 23 rows are marked nonconverged.
 
-## 2. Phase 2 Scope & Roadmap
+## 2. Manuscript evaluation
 
-Phase 2 consists of **4 main objectives**:
+The [paper](Research_paper.tex) compares Random Forest, HistGradientBoosting, Decision Tree, and Logistic Regression. In each of the 45 LOCO folds, the models train on 44 corners (1,320 rows) and test on the remaining corner (30 rows). The same four functional flags are included in each 12-input feature set. The raw set adds eight electrical measurements. The normalized set adds five ratios to a healthy reference and three internal ratios.
 
-```
-+---------------------------------------------------------------------------------+
-|                               PHASE 2 ROADMAP                                   |
-+---------------------------------------------------------------------------------+
-|  STAGE 5: Feature Analysis & Dispersion Validation                             |
-|  - Verify Coefficient of Variation (CV) reduction on healthy cells.            |
-|  - Confirm invariance of physics-normalized features across 45 PVT corners.     |
-+---------------------------------------------------------------------------------+
-                                      |
-                                      v
-+---------------------------------------------------------------------------------+
-|  STAGE 6: Machine Learning Pipeline & Baseline Evaluation                       |
-|  - Execute Non-ML 3-Sigma Rule Baseline (src/baseline_detector.py).             |
-|  - Train 4 Classical Models: RF, Logistic Regression, Linear SVM, HistGB.       |
-|  - Protocol 1: Standard Split (Nominal 1.0V, 27°C, leakage-checked).            |
-|  - Protocol 2: Leave-One-Corner-Out (LOCO across all 45 corners).               |
-|  - Export reports/final_results/comparison_table.csv and trained models (.pkl). |
-+---------------------------------------------------------------------------------+
-                                      |
-                                      v
-+---------------------------------------------------------------------------------+
-|  STAGE 7: Cross-PVT Analysis & Publication Figures                              |
-|  - Generate publication-grade plots in reports/figures/:                        |
-|    * Fig 1: Feature dispersion boxplots (Raw vs Invariant).                     |
-|    * Fig 2: Cross-PVT generalization bar chart (Raw vs Invariant).              |
-|    * Fig 3: Corner degradation heatmap across 45 corners.                       |
-|  - (Optional / Stretch): SHAP feature importance analysis on best model.        |
-+---------------------------------------------------------------------------------+
-                                      |
-                                      v
-+---------------------------------------------------------------------------------+
-|  STAGE 8: Research Paper & Thesis Integration                                   |
-|  - Write Results, Discussion, and Methodology sections.                         |
-|  - Compile LaTeX tables from generated CSVs.                                    |
-+---------------------------------------------------------------------------------+
-```
+The separate development pipeline in [src/ml_pipeline.py](src/ml_pipeline.py) also supports a nominal 80/20 split, Linear SVM, and a rule-based detector. Its saved models and aggregate summaries use the development feature sets and model settings. Historical 15-corner audit results are under [reports/audit](reports/audit/).
 
----
+## 3. Reproduce the reported checks
 
-## 3. Step-by-Step Execution Guide for Collaborators
-
-### Step 1: Environment Setup & Sanity Check
-Before writing any code, clone the repository, activate your virtual environment, and ensure all existing unit tests pass:
+Run from the project root after installing the [project dependencies](README.md#1-prerequisites--environment-setup). Install `shap` for the second command.
 
 ```bash
-# 1. Pull latest code
-git pull origin main
-
-# 2. Install dependencies
-pip install numpy pandas scipy scikit-learn matplotlib seaborn joblib pyyaml pytest
-
-# 3. Verify test suite (Expected: 62 passed)
-pytest -v
+python scripts/reproduce_manuscript_checks.py
+python scripts/reproduce_manuscript_checks.py --rf --shap
+python scripts/verify_checkpoints.py
 ```
 
----
+The first command reproduces Table II from the CSV. The second also fits the Random Forest controls and recomputes Tree SHAP. The third regenerates the [validation report](reports/validation_checkpoints_report.md) from the saved dataset, the Table III CSV, and nominal deck assembly checks. Use the [README](README.md#quickstart) for environment setup and simulator configuration.
 
-### Step 2: Audit Dataset Physical Scaling
-Execute the audit script to verify that the dataset obeys physical semiconductor scaling laws:
+### Manuscript figures
 
-```bash
-python scripts/verify_dataset_physics.py
-```
+| Figure | What it shows |
+|---|---|
+| [Fig. 3](fig1_feature_dispersion_comparison.png) | Raw and normalized CVs for the 5 kΩ open on each access device. |
+| [Fig. 4](fig2_cross_pvt_loco_accuracy.png) | Pooled and worst-corner accuracy for the paper's four models. Random Forest gains 24.22 percentage points in pooled accuracy. |
+| [Fig. 5](fig3_rf_pvt_corner_heatmap.png) | Random Forest accuracy at the 45 held-out corners. The normalized set has a 90.00% worst-corner floor. |
+| [Fig. 8](fig4_shap_summary.png), [Fig. 9](fig4b_shap_class_importance.png) | Global and class-specific mean absolute Tree SHAP scores for the full-data Random Forest. |
 
-**What to check in the output:**
-- **Temperature Leakage Scaling:** $I_{\text{ddq}}$ should rise exponentially from $-40^\circ\text{C}$ ($18\,\text{nA}$) to $125^\circ\text{C}$ ($1.62\,\mu\text{A}$).
-- **Overdrive Sizing:** Write delay $t_{\text{write}}$ should decrease monotonically as $V_{DD}$ increases ($70.6\,\text{ps}$ at $0.9\,\text{V} \to 52.1\,\text{ps}$ at $1.1\,\text{V}$).
-- **Fault Signatures:**
-  - Class 1 (Open): $t_{\text{write}}$ increases monotonically with resistance ($61.6\,\text{ps} \to 106.0\,\text{ps}$).
-  - Class 2 (Bridge): Standby leakage jumps to $18.6\,\mu\text{A}$, bistability collapses (`is_bistable = 0`).
-  - Class 3 ($V_{th}$ Storage): Hold SNM degrades monotonically ($0.443\,\text{V} \to 0.406\,\text{V}$).
-  - Class 4 ($V_{th}$ Access): Sense delay increases ($64.5\,\text{ps} \to 87.9\,\text{ps}$), while Hold SNM remains strictly invariant ($0.441\,\text{V}$).
-
----
-
-### Step 3: Run the Machine Learning Pipeline
-
-The pipeline is implemented in [`src/ml_pipeline.py`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/src/ml_pipeline.py). It runs both protocols and trains all models on both **Raw** and **Physics-Normalized Invariant** feature sets.
-
-Run the ML pipeline with:
-```bash
-python src/ml_pipeline.py
-```
-
-#### Core Components Executed by `ml_pipeline.py`:
-1. **Models Evaluated:**
-   - `RandomForest`: `RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)`
-   - `LogisticRegression`: `make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000, random_state=42))`
-   - `LinearSVM`: `make_pipeline(StandardScaler(), SVC(kernel="linear", random_state=42, probability=True))`
-   - `HistGradientBoosting`: `HistGradientBoostingClassifier(max_iter=100, random_state=42)`
-   - `NonML_Baseline`: `BaselineRuleDetector(n_sigma=3.0)` from [`src/baseline_detector.py`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/src/baseline_detector.py).
-2. **Feature Sets:**
-   - **Raw Features:** `i_ddq_uA`, `t_write_ps`, `i_write_peak_mA`, `dv_bl_strobe_mV`, `t_sense_ps`, `v_bump_mV`, `hold_pass`, `write_pass`, `read_stable_pass`, `snm_hold_v`, `snm_read_v`, `snm_asym_hold_v`, `snm_asym_read_v`, `snm_drop_v`, `is_bistable`.
-   - **Physics-Normalized Invariant Features:** `iddq_norm`, `t_write_norm`, `dv_bl_norm`, `snm_hold_norm`, `snm_read_norm`, `read_write_delay_ratio`, `snm_ratio`, `dv_bl_vdd_ratio`, `hold_pass`, `write_pass`, `read_stable_pass`, `is_bistable`.
-3. **Protocols:**
-   - **Protocol 1 (Standard Split):** In-distribution nominal corner (`1.0V`, `27°C`). Train/test 80/20 stratified split. Asserts **zero sample ID overlap** (leakage-free).
-   - **Protocol 2 (Leave-One-Corner-Out / LOCO):** Iteratively trains on 14 corners (420 samples) and tests on 1 held-out corner (30 samples) across all 45 corners.
-4. **Outputs Generated:**
-   - Saved model weights in `models/*.pkl`
-   - Master comparison table: [`reports/final_results/comparison_table.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/final_results/comparison_table.csv)
-   - Aggregated LOCO summary: [`reports/final_results/loco_summary.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/final_results/loco_summary.csv)
-
----
-
-### Step 4: Generate Publication Figures & Dispersion Analysis
-
-The analysis script is implemented in [`src/cross_pvt_analysis.py`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/src/cross_pvt_analysis.py).
-
-Run the figure generator with:
-```bash
-python src/cross_pvt_analysis.py
-```
-
-#### Generated Artifacts:
-1. [`reports/figures/fig1_feature_dispersion_comparison.png`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/figures/fig1_feature_dispersion_comparison.png):
-   - Standardized Z-score boxplots for Healthy cells across all 45 corners comparing Raw vs Invariant features.
-   - Shows that Hold SNM and Bitline $\Delta V_{\text{BL}}$ dispersion are reduced to **0.0%**, and write delay variation is cut by **57.4%**.
-2. [`reports/figures/fig2_cross_pvt_loco_accuracy.png`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/figures/fig2_cross_pvt_loco_accuracy.png):
-   - Grouped bar chart comparing LOCO accuracy (Mean $\pm$ 1 Std Dev) between Raw and Invariant features across all 4 ML models.
-   - Visualizes the central empirical finding: **$+33.1\%$ accuracy improvement** under cross-PVT testing.
-3. [`reports/figures/fig3_rf_pvt_corner_heatmap.png`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/figures/fig3_rf_pvt_corner_heatmap.png):
-   - Heatmap displaying test accuracy across each of the 15 held-out corners.
-   - Highlights how raw features collapse under extreme temperature corners ($-40^\circ\text{C}$ and $125^\circ\text{C}$), while invariant features remain robust ($>96.7\%$).
-4. [`reports/final_results/feature_spread_comparison.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/final_results/feature_spread_comparison.csv):
-   - Numerical table of Coefficient of Variation ($CV = \frac{\sigma}{\mu} \times 100\%$) and percentage dispersion reductions.
-
----
-
-### Step 5 (Optional / Stretch Goal): Hyperparameter Tuning & SHAP Explainability
-
-If you wish to optimize the models further or add explainability for the paper:
-
-#### A. Hyperparameter Tuning with Optuna (Optional)
-To tune Random Forest (`n_estimators`, `max_depth`, `min_samples_split`) or SVM (`C`, `gamma`):
-1. Install Optuna: `pip install optuna`
-2. Create `scripts/tune_hyperparameters.py` using 5-fold CV on `data/sram_fault_dataset_indist.csv`.
-3. Optimize macro F1-score. Use `seed=42`.
-
-#### B. SHAP Feature Attribution (Optional)
-To generate SHAP summary and waterfall plots for the thesis:
-1. Install SHAP: `pip install shap`
-2. Run TreeExplainer on the trained Random Forest model (`models/randomforest_invariant_standard.pkl`):
-   ```python
-   import shap, joblib, pandas as pd
-   model = joblib.load("models/randomforest_invariant_standard.pkl")
-   df = pd.read_csv("data/sram_fault_dataset.csv")
-   explainer = shap.TreeExplainer(model)
-   shap_values = explainer.shap_values(df[INVARIANT_FEATURES])
-   shap.summary_plot(shap_values, df[INVARIANT_FEATURES], show=False)
-   plt.savefig("reports/figures/fig4_shap_summary.png", bbox_inches="tight")
-   ```
+Root figures are the manuscript assets. Development plotting scripts may write their own figures or replace files with matching names. Use the reproduction script above to check metrics without regenerating publication figures.
 
 ---
 
 ## 4. Key Results & Expected Numbers
 
-Collaborators can verify their training outputs against these expected benchmarks:
+Use the reproduction script to check these benchmark results.
 
 ### 4.1 Feature Dispersion (Healthy Cells across 45 Corners)
 *(From Table II of the research paper; CV is $100s/\bar{x}$ using $n-1$ sample standard deviation)*
 
-| Feature | Raw CV (%) | Normalized Invariant CV (%) | Dispersion Reduction | Healthy Converged (43 Corners)<br>Raw $\to$ Norm CV |
+| Feature | Raw CV (%) | Normalized CV (%) | Dispersion Reduction | Healthy Converged (43 Corners)<br>Raw $\to$ Norm CV |
 |---|:---:|:---:|:---:|:---:|
 | **Hold SNM ($\text{SNM}_{\text{hold}}$)** | $12.40\%$ | **$0.00\%$** | **$100\%$ eliminated** | $12.31\% \to \mathbf{0.00\%}$ |
 | **Bitline Swing ($\Delta V_{\text{BL}}$)** | $38.50\%$ | **$0.00\%$** | **$100\%$ eliminated** | $38.83\% \to \mathbf{0.00\%}$ |
@@ -205,69 +61,35 @@ Collaborators can verify their training outputs against these expected benchmark
 | **Standby Current ($I_{\text{DDQ}}$)** | $197.59\%$ | **$111.80\%$** | **$43.4\%$ reduction** | $139.95\% \to \mathbf{0.00\%}$ |
 | **Read SNM ($\text{SNM}_{\text{read}}$)** | $22.10\%$ | **$15.25\%$** | **$31.0\%$ reduction** | $22.26\% \to \mathbf{15.61\%}$ |
 
-### 4.2 Classification Performance Across Protocols (Random Forest)
+### 4.2 Classification Performance (Random Forest)
 *(From Table III of the research paper; standard deviations reflect population std with $\mathrm{ddof}=0$)*
 
-| Evaluation Protocol | Raw Features Accuracy | Normalized Invariant Set | Generalization Gain | Worst-Corner Floor |
+| Evaluation Protocol | Raw Features Accuracy | Normalized Feature Set | Generalization Gain | Worst-Corner Floor |
 |---|:---:|:---:|:---:|:---:|
-| **Standard Split (Nominal Corner)** | $100.0\%$ | **$100.0\%$** | $0.0\,\text{pp}$ | $100.0\%$ |
 | **Leave-One-Corner-Out (LOCO across 45 corners)** | $75.11\% \pm 14.15\%$ [Min: 50.0%] | **$99.33\% \pm 1.94\%$** [Min: 90.0%] | **$+24.22\,\text{pp}$** | $50.00\% \to \mathbf{90.00\%}$ *(39/45 perfect)* |
 
-*(Note: On the 1,327 converged rows, normalized Random Forest reaches **99.70% LOCO accuracy** with 43/45 perfect corners; HistGradientBoosting reaches **99.41% $\pm$ 2.14%** with an 86.67% floor).*
+On 1,327 rows marked converged, Random Forest scores 75.28% with raw features and 99.70% with normalized features. This subset retains the flagged read-SNM zero at TT, 0.9 V, 0 °C. Omitting all 30 rows at that corner before forming folds gives 99.32% on the remaining 44 corners.
 
 ---
 
-## 5. Research Paper / Thesis Writing Guide (Stage 8)
 
-When writing the paper or thesis report, structure the content as follows:
+## 5. Manuscript and supporting results
 
-### Section 1: Introduction & Problem Statement
-- SRAM cells are increasingly susceptible to nanometer manufacturing defects (resistive opens, bridging) and parametric aging/variability ($V_{th}$ drift from BTI/HCI).
-- Traditional BIST (Built-In Self-Test) only detects catastrophic functional go/no-go failures and misses subtle parametric degradation.
-- **The Core Challenge:** Standard ML classifiers trained at nominal temperature/voltage fail when deployed across operating corners because environmental PVT drift masks or mimics fault signatures.
-- **Proposed Solution:** A physics-normalized invariant feature representation referencing a co-located healthy cell on the same die.
+- [Research paper](Research_paper.tex) and [compiled PDF](SRAM_Research_paper.pdf) contain the circuit, dataset, evaluation, and limitations.
+- [Table III benchmark CSV](reports/final_results/table3_loco_benchmark.csv) records the four-model LOCO comparison. Table IV covers the Random Forest controls.
+- Table V scores only faulty observations at held-out parameter ranks. The $S_1$ fold scores 200/225, or 88.89%. The joint corner and parameter holdout scores 446/450, or 99.11%.
+- Table VI reports class-specific and global Tree SHAP means from the fitted Random Forest.
 
-### Section 2: 6T SRAM Cell & Defect Modeling
-- Standard 180nm CMOS topology ($M_1$–$M_6$).
-- Decoupled netlist architecture and 4 fault injection models.
-- Mathematical definitions of butterfly-curve Static Noise Margins (Hold SNM and Read SNM) using the largest inscribed square method.
+## 6. Handover checklist
 
-### Section 3: PVT Simulation Framework
-- 45-corner grid: 3 process corners (TT, FF, SS) $\times$ 3 supply voltages $\times$ 5 temperatures.
-- Multi-threaded headless simulation engine with transient convergence and DC monotonicity checks.
-- Dataset construction: 1,350 balanced samples, 34-column schema, zero-NaN guarantee.
-
-### Section 4: Physics-Normalized Invariant Feature Engineering
-- Define the normalization equations:
-  $$I_{\text{ddq, norm}} = \frac{I_{\text{ddq}}}{I_{\text{ddq, ref}}}, \quad t_{\text{write, norm}} = \frac{t_{\text{write}}}{t_{\text{write, ref}}}, \quad \text{SNM}_{\text{norm}} = \frac{\text{SNM}}{\text{SNM}_{\text{ref}}}$$
-- Include Table 4.1 from this document showing $CV$ dispersion reduction. Include `fig1_feature_dispersion_comparison.png`.
-
-### Section 5: Experimental Results & Discussion
-- Present Table 4.2 comparing all 4 ML models (Random Forest, Logistic Regression, Linear SVM, HistGB) and the Non-ML Baseline.
-- Include `fig2_cross_pvt_loco_accuracy.png` and `fig3_rf_pvt_corner_heatmap.png`.
-- **Explain the Physics:** Why does raw accuracy drop to $75.11\%$ under LOCO (falling to a $50.00\%$ floor at extreme corners)? Because subthreshold leakage increases by $>100\times$ between $-40^\circ\text{C}$ and $125^\circ\text{C}$, leading the classifier to misdiagnose high temperature as an internal bridging fault, while low supply slows down healthy cell switching. Invariant normalization cancels these common-mode variations, restoring $99.33\%$ to $99.41\%$ accuracy across all 45 corners.
-
-### Section 6: Conclusion
-- Summary of achievements: automated SPICE pipeline, 45-corner PVT dataset, $+24.22\,\text{pp}$ cross-PVT generalization improvement (Random Forest lifted from $75.11\%$ to $99.33\%$), and publication-ready diagnostic models.
-
----
-
-## 6. Deliverables Checklist for Collaborators
-
-Before submitting or wrapping up Phase 2, verify that all items below are complete:
-
-- [ ] Run `python src/ml_pipeline.py` and verify `reports/final_results/comparison_table.csv` is populated.
-- [ ] Verify trained model pickles exist in `models/` (`randomforest_invariant_standard.pkl`, etc.).
-- [ ] Run `python src/cross_pvt_analysis.py` and verify PNG figures exist in `reports/figures/`.
-- [ ] Run `pytest` and verify all 62 tests continue to pass with 0 failures.
-- [ ] Review `reports/final_results/loco_summary.csv` to ensure mean LOCO accuracy on invariant features exceeds $98\%$.
-- [ ] Insert figures and tables into the BTP report / LaTeX manuscript.
-- [ ] Commit all generated reports and figures to Git and push to GitHub.
+- Reproduce Table II and the manuscript's Random Forest sensitivity checks from the saved dataset.
+- Regenerate the checkpoint report when the dataset or the stored benchmark summary changes.
+- Use the manuscript source, the compiled PDF, and the corresponding Overleaf archive for submission.
 
 ---
 
 ## 7. Contact & Assistance
 If any unexpected test failures or SPICE anomalies occur:
-- Inspect [`logs/convergence_flags.csv`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/logs/convergence_flags.csv) for any flagged netlists.
+- Check `convergence_flags_*.csv` and `ref_sim_flags_*.csv` in [logs](logs/) for warnings from new runs. The [unsuffixed convergence log](logs/convergence_flags.csv) covers an earlier run.
 - Check that your local `config.yaml` points to a valid LTspice executable path.
-- Review [`PROJECT_DOCUMENTATION.md`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/PROJECT_DOCUMENTATION.md) for deep circuit and algorithm specifications.
+- Review [`PROJECT_DOCUMENTATION.md`](PROJECT_DOCUMENTATION.md) for deep circuit and algorithm specifications.

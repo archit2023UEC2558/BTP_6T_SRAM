@@ -1,4 +1,4 @@
-"""Cleaned LOCO evaluation for SRAM fault diagnosis.
+"""Historical 15-corner cleaned LOCO evaluation for SRAM fault diagnosis.
 
 Runs the same four ML models + 3-sigma baseline as src/ml_pipeline.py
 on the approved cleaned datasets, using the exact raw/invariant feature
@@ -22,7 +22,6 @@ from src.baseline_detector import BaselineRuleDetector
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 AUDIT_DIR = PROJECT_ROOT / "reports" / "audit"
-FINAL_RESULTS_DIR = PROJECT_ROOT / "reports" / "final_results"
 
 RAW_FEATURES = [
     "i_ddq_uA",
@@ -202,7 +201,7 @@ def summarize(results):
 
 
 def load_old_summary():
-    path = FINAL_RESULTS_DIR / "loco_summary.csv"
+    path = AUDIT_DIR / "loco_summary_original_450.csv"
     if not path.exists():
         return None
 

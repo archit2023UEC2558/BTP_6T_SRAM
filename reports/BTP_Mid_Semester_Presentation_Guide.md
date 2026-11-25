@@ -1,6 +1,9 @@
 # BTP Mid-Semester Presentation: Slide-by-Slide Script & Defense Guide
 
-**Presentation File:** [`reports/BTP_Mid_Semester_Presentation.pptx`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/BTP_Mid_Semester_Presentation.pptx)  
+> This guide accompanies the historical mid-semester presentation and its 15-corner results. See the [manuscript](../Research_paper.tex) for the 45-corner evaluation.
+
+**Presentation file.** [BTP_Mid_Semester_Presentation.pptx](BTP_Mid_Semester_Presentation.pptx).
+
 **Target Format:** 16:9 Widescreen | Minimum Font Size: 24 pt | Bullet form | High-Res Graphics Embedded  
 **Guideline Adherence:** Strict compliance with B.Tech Mid-Semester Project Progress Presentation Format (15 Slides)
 
@@ -10,7 +13,7 @@
 
 ### Slide 1 — Title Slide
 - **Title:** Automated SRAM Fault Diagnosis Using Physics-Normalized Feature Invariants Across PVT Corners
-- **Subtitle:** Mid-Semester B.Tech Project Progress Presentation | 45nm CMOS Technology
+- **Subtitle:** Mid-Semester B.Tech Project Progress Presentation | 180 nm Level-1 MOS Models
 - **Contents:**
   * Group Members: Ayush Raj (Roll No: 210102025) & Project Team
   * Project Supervisor: Faculty Advisor / Project Guide
@@ -37,14 +40,14 @@
 - **Bullets:**
   * **Automated Simulation Pipeline:** Develop a programmatic SPICE harness for defect injection across multi-dimensional PVT corners.
   * **Static & Dynamic Metric Extraction:** Extract butterfly Static Noise Margins (SNM), write delays, bitline discharge, and $I_{\text{DDQ}}$ currents.
-  * **Physics-Invariant Formulation:** Design on-die reference normalized ratios that cancel environmental temperature and voltage drift.
-  * **Cross-PVT Benchmark & Explainability:** Prove generalization via Leave-One-Corner-Out (LOCO) protocols and explain decisions using Tree SHAP.
+  * **Reference normalization.** Compute ratios to a simulated healthy cell at the same operating point.
+  * **Cross-corner evaluation and explainability.** Measure held-out corner accuracy and describe feature attributions using Tree SHAP.
 
 ---
 
 ### Slide 4 — Related Theory: 6T SRAM Cell & Static Noise Margin
 - **Main Idea:** Circuit architecture and the mathematical definition of SNM.
-- **Visual Embedded:** [`reports/figures/snm_butterfly_diagram.png`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/figures/snm_butterfly_diagram.png)
+- **Visual Embedded:** [`reports/figures/snm_butterfly_diagram.png`](../reports/figures/snm_butterfly_diagram.png)
 - **Bullets:**
   * **6T SRAM Core Structure:** Cross-coupled CMOS inverter latch ($M_1$–$M_4$) with NMOS access transistors ($M_5, M_6$).
   * **Operational Stability:** Hold retention, non-destructive read stability, and successful write flipping.
@@ -56,13 +59,13 @@
 ---
 
 ### Slide 5 — Related Theory: Physical Fault Taxonomy & Toolchain
-- **Main Idea:** Physical defect models at 45nm and the tool ecosystem.
-- **Visual Embedded:** [`reports/figures/sram_architecture_faults.png`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/figures/sram_architecture_faults.png)
+- **Main Idea:** Resistive defects and threshold shifts modeled in the benchmark netlist.
+- **Visual Embedded:** [`reports/figures/sram_architecture_faults.png`](../reports/figures/sram_architecture_faults.png)
 - **Bullets:**
-  * **F1: Resistive Bridge:** Inter-node shorts between internal storage nodes $Q$ and $Q_b$ ($100\,\Omega$ to $5\,\text{k}\Omega$).
-  * **F2: Open Defect:** Via and contact connectivity breaks on access transistors ($100\,\text{k}\Omega$ to $10\,\text{M}\Omega$).
-  * **F3: Gate Oxide Leakage:** Dielectric breakdown modeled as non-linear voltage-dependent tunneling current.
-  * **F4: Vth Mismatch:** Random dopant fluctuation causing severe threshold asymmetry ($\Delta V_{\text{th}} = \pm 150\,\text{mV}$).
+  * **Class 1, resistive open.** A $200\,\Omega$ to $10\,\text{k}\Omega$ series resistance on either access path.
+  * **Class 2, resistive bridge.** A $500\,\Omega$ to $10\,\text{k}\Omega$ shunt between $Q$ and $Q_b$.
+  * **Class 3, storage threshold drift.** Six levels increase $|V_{\mathrm{TO}}|$ from 5% to 30% on the storage transistors.
+  * **Class 4, access threshold drift.** The same six increases in $|V_{\mathrm{TO}}|$ on the access transistors.
 
 ---
 
@@ -82,18 +85,18 @@
   * **Static Nominal Assumption:** Prior ML models train and test strictly at nominal conditions ($27^\circ\text{C}, 1.0\,\text{V}$), ignoring thermal and supply drift.
   * **Cross-PVT Domain Collapse:** Raw features shift up to $400\%$ across corners, causing standard ML accuracy to drop severely from $100\%$ to $<75\%$.
   * **False Overconfidence:** Random train/test splits hide out-of-distribution failure, leading to unreliable deployed diagnosis.
-  * **Our Proposed Solution:** Combine concurrent reference-cell normalization with Leave-One-Corner-Out validation to guarantee generalization.
+  * **Our proposed solution.** Use a matched simulated healthy reference and measure performance at held-out operating points.
 
 ---
 
 ### Slide 8 — Proposed Methodology: End-to-End System Workflow
 - **Main Idea:** Architectural block diagram and step-by-step pipeline.
-- **Visual Embedded:** [`reports/figures/methodology_flowchart.png`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/figures/methodology_flowchart.png)
+- **Visual Embedded:** [`reports/figures/methodology_flowchart.png`](../reports/figures/methodology_flowchart.png)
 - **Bullets:**
-  * **1. Automated Netlist Builder:** Constructs 45nm PTM SPICE netlists injecting 4 physical fault models.
-  * **2. Multi-Corner Simulation:** Executes 15 PVT corners ($0.9\text{V}$–$1.1\text{V}$, $-40^\circ\text{C}$–$125^\circ\text{C}$, TT/FF/SS) via LTspice batch harness.
+  * **1. Automated Netlist Builder:** Constructs 180 nm Level-1 SPICE netlists with four injected fault classes.
+  * **2. Multi-Corner Simulation:** Runs the 15 voltage–temperature combinations at the nominal process setting using LTspice ($0.9\text{V}$–$1.1\text{V}$, $-40^\circ\text{C}$–$125^\circ\text{C}$).
   * **3. Feature Extraction:** Computes dynamic metrics & inscribed-square SNM margins.
-  * **4. Invariant Formulation:** Normalizes against same-die reference cell: $X_{\text{inv}} = X_{\text{meas}} / X_{\text{ref}}$.
+  * **4. Reference normalization.** Forms $X_{\text{meas}} / X_{\text{ref}}$ using a healthy cell simulated at the same operating point.
   * **5. Cross-PVT Benchmarking:** Evaluates generalization using Leave-One-Corner-Out across 4 ML models.
 
 ---
@@ -110,7 +113,7 @@
 
 ### Slide 10 — Work Completed: Feature Invariance & PVT Drift Mitigation
 - **Main Idea:** Visual and statistical proof that physics-normalization works.
-- **Visual Embedded:** [`reports/figures/fig1_feature_dispersion_comparison.png`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/figures/fig1_feature_dispersion_comparison.png)
+- **Visual Embedded:** [`reports/figures/fig1_feature_dispersion_comparison.png`](../reports/figures/fig1_feature_dispersion_comparison.png)
 - **Bullets:**
   * **Raw Parameter Instability:** Raw delays and $I_{\text{DDQ}}$ currents exhibit $>60\%$ coefficient of variation across temperatures.
   * **Invariant Collapse:** Normalized features collapse environmental dispersion to $<5\%$ for healthy cells.
@@ -121,19 +124,19 @@
 
 ### Slide 11 — Work Completed: Cross-PVT LOCO Diagnostic Performance
 - **Main Idea:** Empirical benchmark proving high cross-corner generalization.
-- **Visual Embedded:** [`reports/figures/fig2_cross_pvt_loco_accuracy.png`](file:///c:/Users/AYUSH/Desktop/btp-sram-fault-diagnosis/reports/figures/fig2_cross_pvt_loco_accuracy.png)
+- **Historical comparison figure.** [Original and cleaned 15-corner results](audit/final_comparison_figure.png)
 - **Bullets:**
-  * **Random Forest & HistGB:** Achieved **98.89%** LOCO accuracy with invariant features vs **82.67%** with raw (**+16.22% gain**).
-  * **Linear Models:** Linear SVM and Logistic Regression improved by $+11.55\%$ and $+6.22\%$ under invariant features.
+  * **Random Forest and HistGB.** Both reached **98.89%** mean LOCO accuracy with normalized features. The raw results were **82.67%** and **82.89%**, respectively. [Archived summary](audit/loco_summary_original_450.csv)
+  * **Linear models.** Linear SVM and Logistic Regression improved by 11.55 and 6.22 percentage points with normalized features.
   * **Non-ML Baseline Failure:** Standard $3\sigma$ rule detector degrades heavily across corners, confirming need for ML.
-  * **Sensitivity Audit:** Removing transient simulation timeouts achieves **100.0%** accuracy across all 15 corners.
+  * **Sensitivity audit.** The normalized Random Forest reached 100.00% after excluding 22 rows with missing waveform output. [Historical comparison](audit/final_comparison_table.csv)
 
 ---
 
 ### Slide 12 — Project Progress Against Original Plan
 - **Main Idea:** Timeline tracking showing 100% completion of planned milestones.
 - **Bullets:**
-  * **Phase 1: Circuit & Simulation (Weeks 1–4):** 100% Completed | 45nm Netlists, sizing, and automated fault injection operational.
+  * **Phase 1: Circuit & Simulation (Weeks 1–4):** 180 nm Level-1 netlists, sizing, and automated fault injection operational.
   * **Phase 2: Dataset & Invariant Features (Weeks 5–7):** 100% Completed | 450 simulation matrix and normalization pipeline fully verified.
   * **Phase 3: Model Training & Evaluation (Weeks 7–8):** 100% Completed | 4 classical ML models evaluated under Standard Split and LOCO.
   * **Phase 4: Explainability & Checkpoints (Week 9):** 100% Completed | Tree SHAP feature attribution & all 7 Section 8 checkpoints passed.
@@ -154,9 +157,9 @@
 ### Slide 14 — Conclusion & Current Project Status
 - **Main Idea:** Executive takeaway summarizing the novelty and readiness.
 - **Bullets:**
-  * **Key Technical Achievement:** Successfully resolved the cross-PVT domain shift problem in SRAM fault diagnosis using invariant features.
-  * **Proven Generalization:** Demonstrated 98.89% to 100.0% accuracy across 15 unseen PVT corners, eliminating overconfidence.
-  * **Rigorous Engineering Quality:** Backed by 62/62 automated passing tests and 7/7 formal Section 8 validation checkpoints.
+  * **Key result.** Reference-normalized features improved classification across the simulated operating grid.
+  * **Historical LOCO results.** The normalized Random Forest reached 98.89% across 15 folds of the original dataset and 100.00% on the 428-row subset.
+  * **Validation artifacts.** The current checkpoint report records stored-data and nominal deck-assembly checks for the 45-corner benchmark. [Checkpoint report](validation_checkpoints_report.md)
   * **Current Project Status:** Engineering, modeling, and validation 100% complete; paper manuscript in progress.
 
 ---
