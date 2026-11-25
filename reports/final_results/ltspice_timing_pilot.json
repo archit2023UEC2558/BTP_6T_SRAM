@@ -1,0 +1,173 @@
+{
+  "machine": {
+    "processor": "Intel(R) Core(TM) i5-1035G1 CPU @ 1.00GHz",
+    "physical_cores": 4,
+    "logical_cores": 8,
+    "usable_memory_bytes": 8345964544,
+    "os": "Windows 10.0.26300"
+  },
+  "ltspice_version": "LTspice 24.1.9 for Windows",
+  "corner": {
+    "process": "TT",
+    "vdd_v": 1.0,
+    "temperature_c": 27
+  },
+  "cases": [
+    [
+      0,
+      "none",
+      0.0
+    ],
+    [
+      1,
+      "M5",
+      5000.0
+    ],
+    [
+      2,
+      "Q_Qb",
+      5000.0
+    ],
+    [
+      3,
+      "storage_pair",
+      15.0
+    ],
+    [
+      4,
+      "access_pair",
+      15.0
+    ]
+  ],
+  "operations": [
+    "hold",
+    "write",
+    "write_0",
+    "read",
+    "read_0",
+    "snm_hold",
+    "snm_read"
+  ],
+  "complete": true,
+  "measurement_record": "Batch wall times and completion counts recovered from the captured console output at 0.001 s precision. Per-deck logs were temporary.",
+  "batches": [
+    {
+      "trial": 1,
+      "workers": 1,
+      "wall_seconds": 60.393,
+      "jobs_completed": 35,
+      "flagged_jobs": 0
+    },
+    {
+      "trial": 1,
+      "workers": 2,
+      "wall_seconds": 74.259,
+      "jobs_completed": 35,
+      "flagged_jobs": 0
+    },
+    {
+      "trial": 1,
+      "workers": 4,
+      "wall_seconds": 93.902,
+      "jobs_completed": 35,
+      "flagged_jobs": 0
+    },
+    {
+      "trial": 1,
+      "workers": 8,
+      "wall_seconds": 81.82,
+      "jobs_completed": 35,
+      "flagged_jobs": 0
+    },
+    {
+      "trial": 2,
+      "workers": 8,
+      "wall_seconds": 163.228,
+      "jobs_completed": 35,
+      "flagged_jobs": 0
+    },
+    {
+      "trial": 2,
+      "workers": 4,
+      "wall_seconds": 76.841,
+      "jobs_completed": 35,
+      "flagged_jobs": 0
+    },
+    {
+      "trial": 2,
+      "workers": 2,
+      "wall_seconds": 61.259,
+      "jobs_completed": 35,
+      "flagged_jobs": 0
+    },
+    {
+      "trial": 2,
+      "workers": 1,
+      "wall_seconds": 52.107,
+      "jobs_completed": 35,
+      "flagged_jobs": 0
+    },
+    {
+      "trial": 3,
+      "workers": 4,
+      "wall_seconds": 43.485,
+      "jobs_completed": 35,
+      "flagged_jobs": 0
+    },
+    {
+      "trial": 3,
+      "workers": 1,
+      "wall_seconds": 50.983,
+      "jobs_completed": 35,
+      "flagged_jobs": 0
+    },
+    {
+      "trial": 3,
+      "workers": 8,
+      "wall_seconds": 45.008,
+      "jobs_completed": 35,
+      "flagged_jobs": 0
+    },
+    {
+      "trial": 3,
+      "workers": 2,
+      "wall_seconds": 31.053,
+      "jobs_completed": 35,
+      "flagged_jobs": 0
+    }
+  ],
+  "summary": [
+    {
+      "workers": 1,
+      "median_batch_seconds": 52.107,
+      "min_batch_seconds": 50.983,
+      "max_batch_seconds": 60.393,
+      "speedup": 1.0,
+      "efficiency": 1.0
+    },
+    {
+      "workers": 2,
+      "median_batch_seconds": 61.259,
+      "min_batch_seconds": 31.053,
+      "max_batch_seconds": 74.259,
+      "speedup": 0.8506015442628838,
+      "efficiency": 0.4253007721314419
+    },
+    {
+      "workers": 4,
+      "median_batch_seconds": 76.841,
+      "min_batch_seconds": 43.485,
+      "max_batch_seconds": 93.902,
+      "speedup": 0.6781145482229539,
+      "efficiency": 0.16952863705573848
+    },
+    {
+      "workers": 8,
+      "median_batch_seconds": 81.82,
+      "min_batch_seconds": 45.008,
+      "max_batch_seconds": 163.228,
+      "speedup": 0.6368491811293083,
+      "efficiency": 0.07960614764116354
+    }
+  ]
+}

@@ -14,11 +14,11 @@
 \maketitle
 
 \begin{abstract}
-Process, voltage, and temperature variation can obscure the electrical signatures of parametric faults in six-transistor static random-access memory. We evaluate matched-reference normalization using 1,350 simulated cell observations across 45 operating corners, covering a healthy class and four defect classes. In leave-one-corner-out evaluation, the normalized feature set raises Random Forest accuracy from 75.11 to 99.33 percent and worst-corner accuracy from 50.00 to 90.00 percent. A controlled comparison using the same five measurements and the same healthy reference gives 76.74 percent with unnormalized target and reference inputs and 99.11 percent with their ratios. At a fixed access-path open, normalization reduces cross-corner variation in write delay and bitline swing. Joint holdout of operating corner and interior fault-parameter levels gives 99.11 percent accuracy on 450 faulty observations. At the parameter boundary, accuracy on the weakest tested opens is 76.67 percent. The results quantify the benefit and limits of reference normalization within the simulated operating grid.
+Process, voltage, and temperature variation can obscure the electrical signatures of parametric faults in six-transistor static random-access memory. An automated transistor-level workflow composes fault-injected netlists and dispatches independent simulation jobs concurrently. The benchmark schedules 9,765 LTspice analyses and yields 1,350 cell observations across 45 operating corners, covering a healthy class and four defect classes. In a separate nominal-corner timing pilot, one worker gave the lowest median batch time. In leave-one-corner-out evaluation, the reference-normalized feature set raises Random Forest accuracy from 75.11 to 99.33 percent and worst-corner accuracy from 50.00 to 90.00 percent. A controlled comparison using the same five measurements and the same healthy reference gives 76.74 percent with unnormalized target and reference inputs and 99.11 percent with their ratios. At a fixed access-path open, normalization reduces cross-corner variation in write delay and bitline swing. Joint holdout of operating corner and interior fault-parameter levels gives 99.11 percent accuracy on 450 faulty observations. At the parameter boundary, accuracy on the weakest tested opens is 76.67 percent.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Fault diagnosis, machine learning, process-voltage-temperature variation, reference normalization, static noise margin, static random-access memory.
+Circuit simulation, fault diagnosis, machine learning, process-voltage-temperature variation, reference normalization, static noise margin, static random-access memory.
 \end{IEEEkeywords}
 
 \section{Introduction}
@@ -27,7 +27,7 @@ Device and operating-condition variation affect the stability and timing of stat
 
 March-based tests address defined classes of functional memory faults \cite{vandegoor1993march,vandegoor2000functional,hamdioui2003dynamic}. Programmable weak-cell screening can target reduced stability margins \cite{pavlov2004sram}. Reference-based analog screening also has precedent. Sabade and Walker \cite{sabade2004comparison} compared differences and ratios of quiescent current across test vectors. Here, each reference comes from a separate healthy simulation at the target's process, supply voltage, and temperature. It provides a baseline for timing, swing, stability, and sampled supply-current measurements. Static noise margin (SNM) is derived from the SRAM butterfly construction \cite{seevinck1987static}.
 
-Machine learning has been applied in semiconductor test and post-silicon diagnosis \cite{makris2018special,amrouch2022machine}. Venkatesan \emph{et al.} \cite{venkatesan2024sram} investigated neural-network diagnosis using simulated SRAM responses and data augmentation. The question here is how much operating-corner variation can be removed before classification by incorporating a healthy reference. We evaluate an automated transistor-level benchmark, compare normalization operators under identical corner splits, and test performance when the operating corner and selected defect parameters are withheld together.
+Machine learning has been applied in semiconductor test and post-silicon diagnosis \cite{makris2018special,amrouch2022machine}. Venkatesan \emph{et al.} \cite{venkatesan2024sram} investigated neural-network diagnosis using simulated SRAM responses and data augmentation. Our study uses an automated batch of transient and direct-current simulations to characterize healthy and faulty cells at matched operating corners. These measurements let us quantify how much variation remains after normalization, compare normalization operators under identical corner splits, and test diagnosis when the operating corner and selected defect parameters are withheld together. A separate nominal-corner pilot characterizes batch execution time as the worker count varies.
 
 \section{Transistor-Level Simulation Benchmark}
 
@@ -67,7 +67,7 @@ Access threshold shift & 5, 10, 15, 20, 25, 30\% & 6 \\
 \end{tabular}
 \end{table}
 
-The Python harness composes operation-specific netlists from each cell and dispatches independent LTspice jobs through a worker pool. Each configuration is evaluated with hold, write 1, write 0, read 1, read 0, and two direct-current (DC) sweeps for hold and read SNM. This produces 1,350 configuration--corner observations from 9,450 target runs (6,750 transient and 2,700 DC). The dedicated healthy reference at each corner adds seven runs, bringing the total to 9,765. Reference and healthy target decks use the same deterministic circuit settings.
+The Python harness composes one netlist per cell, operating corner, and test operation. Each batch dispatches separate LTspice processes from a thread pool with a default limit of eight concurrent jobs. A one-worker setting runs the same dispatch serially. Each configuration is evaluated with hold, write 1, write 0, read 1, read 0, and two direct-current (DC) sweeps for hold and read SNM. This yields 1,350 configuration--corner observations from 9,450 scheduled target analyses (6,750 transient and 2,700 DC). The dedicated healthy reference at each corner adds seven analyses, bringing the workload to 9,765. Reference and healthy target decks use the same deterministic circuit settings.
 
 \subsection{Electrical Measurements and SNM Extraction}
 
@@ -276,14 +276,40 @@ The recurring deterministic configurations and global process shifts limit infer
 
 Fallback-coded values can influence both classification and attribution. For example, a large write-delay value can encode a failed extraction. The sampled standby current also varies nonmonotonically with temperature at some fixed supply voltages, motivating settled-current checks before physical leakage interpretation. Calibrated process models, extracted parasitics, and silicon measurements would expand the scope of the benchmark.
 
-Internal-node SNM sweeps and picosecond timing suit simulation and characterization structures that expose analog signals. Array deployment would require a reference-health check and measurement circuitry with characterized resolution, routing, area, and test time. The four screening flags characterize the applied operations. Coverage of a March test sequence remains a separate evaluation.
+Internal-node SNM and picosecond timing require analog access. Array deployment would require reliable references and characterization of measurement precision, area, and test time. The results cover the four screening checks used here.
 
-\clearpage
+\subsection{Nominal-Corner Batch Timing}
+\label{sec:batch-timing}
+
+The timing pilot used five target configurations at TT, 1.0\,V, and $27\,^{\circ}$C. It included the healthy cell, a 5\,k$\Omega$ open on $M_5$, a 5\,k$\Omega$ bridge, and 15\% threshold-magnitude shifts on the storage and access devices. Seven operations per configuration gave 35 precomposed decks. The pilot used LTspice 24.1.9 on Windows build 26300 with an Intel Core i5-1035G1 (four cores, eight logical processors) and 7.8\,GiB of usable RAM.
+
+After a warm-up job, we ran the same decks three times at each worker count, varying the order across trials. Batch wall time includes simulator launches, output handling, and waveform integrity checks. Netlist generation, feature extraction, and classifier fitting are outside the timed interval. We compute speedup as the ratio of the one-worker median time to the median time at each worker count. Efficiency divides that ratio by the number of workers.
+
+\begin{table}[!t]
+\caption{Wall Time for the 35-Deck LTspice Pilot}
+\label{tab:batch-timing}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}rrrrr@{}}
+\toprule
+Workers & Median (s) & Range (s) & Speedup & Efficiency (\%) \\
+\midrule
+1 & 52.11 & 50.98--60.39 & 1.00 & 100.0 \\
+2 & 61.26 & 31.05--74.26 & 0.85 & 42.5 \\
+4 & 76.84 & 43.48--93.90 & 0.68 & 17.0 \\
+8 & 81.82 & 45.01--163.23 & 0.64 & 8.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All 35 jobs completed in every batch. One worker had the lowest median time, and two workers had the shortest individual batch. The trial ranges in Table~\ref{tab:batch-timing} show substantial variation. The pilot characterizes this workload on one machine. Timing the full campaign would quantify scaling across operating corners.
+
 \section{Conclusion}
 
 Reference normalization reduces cross-corner dispersion of electrical measurements while retaining the signature of a fixed access-path defect. On the 45-corner transistor-level benchmark, the normalized RF achieves 99.33\% pooled accuracy with a 90.00\% worst-corner floor. The matched controls show that ratios can improve RF diagnosis even when raw reference values are already available. The joint holdout supports interpolation within the sampled fault grid, and the weakest-open result identifies a boundary where diagnosis remains difficult.
 
-\IEEEtriggeratref{6}
+\IEEEtriggeratref{4}
 \begin{thebibliography}{00}
 
 \bibitem{mukhopadhyay2005modeling}
